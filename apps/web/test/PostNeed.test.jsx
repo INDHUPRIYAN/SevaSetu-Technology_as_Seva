@@ -183,6 +183,60 @@ describe('Post a Need', () => {
     expect(screen.getByText(/Suggested draft — please check every field/)).toBeInTheDocument();
   });
 
+  it('Dignity Check gate: Publish stays locked while a flag has no answer; "Keep mine" or "Use this" unlocks it', async () => {
+    signIn(COORDINATOR);
+    mockBridge();
+    open();
+    await makeDraft('poor boy Ravi, income 5000');
+    await screen.findByRole('button', { name: 'Keep mine' });
+    await confirmAndConsent();
+    const publish = screen.getByRole('button', { name: 'Publish need' });
+    expect(publish).toBeDisabled();
+    expect(screen.getByTestId('dignity-gate')).toHaveTextContent(/answer each Dignity Check flag/);
+    await userEvent.click(publish);
+    expect(needsCalls()).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Keep mine' }));
+    expect(publish).toBeEnabled();
+  });
+
+  it('Dignity Check: when only the rules ran it says so; when a model exists but did not answer, it asks for a human read', async () => {
+    signIn(COORDINATOR);
+    mockBridge({ source: 'rules' });                                     // capabilities.llm = false
+    open();
+    await makeDraft();
+    expect(await screen.findByTestId('dignity-rules-only')).toHaveTextContent(/Checked by simple rules only/);
+    expect(screen.getByRole('button', { name: 'Publish need' })).toBeDisabled();   // ticks still needed
+    await confirmAndConsent();
+    expect(screen.getByRole('button', { name: 'Publish need' })).toBeEnabled();    // rules ran, nothing flagged: a person has read it
+  });
+
+  it('Dignity Check: a model is set up but the check came back rules-only → "could not run", read every line', async () => {
+    signIn(COORDINATOR);
+    mockBridge({ source: 'ai' });                                        // capabilities.llm = true, but dignity() answers source "rules"
+    open();
+    await makeDraft();
+    expect(await screen.findByTestId('dignity-rules-only')).toHaveTextContent(/The AI check could not run/);
+  });
+
+  it('Dignity Check failed outright → never approved silently: Publish stays locked and says why', async () => {
+    signIn(COORDINATOR);
+    mockBridge();
+    api.post.mockImplementation((url, body) => {
+      if (url === '/api/bridge/voicebridge') return Promise.resolve({ draft: DRAFT, missing: [], question: null, readBack: '', relatedCardId: null, privacyFlags: [], source: 'rules' });
+      if (url === '/api/bridge/dignity-check') return Promise.reject({ message: 'Something went wrong' });
+      return Promise.reject(new Error(url));
+    });
+    open();
+    await makeDraft();
+    expect(await screen.findByText(/could not be checked/)).toBeInTheDocument();
+    await confirmAndConsent();
+    const publish = screen.getByRole('button', { name: 'Publish need' });
+    expect(publish).toBeDisabled();
+    expect(screen.getByTestId('dignity-gate')).toHaveTextContent(/could not run/);
+    await userEvent.click(publish);
+    expect(needsCalls()).toHaveLength(0);
+  });
+
   async function confirmAndConsent() {
     await userEvent.click(screen.getByLabelText(/they confirmed it/));
     await userEvent.click(screen.getByLabelText(/I consent to publishing this need/));

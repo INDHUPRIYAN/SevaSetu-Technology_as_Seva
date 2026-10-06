@@ -82,6 +82,7 @@ export default function PostNeed() {
   const [form, setForm] = useState(null);
   const [touched, setTouched] = useState(false);
   const [readBack, setReadBack] = useState(false);          // the community heard it and confirmed
+  const [dignity, setDignity] = useState({ ready: false });   // the Dignity Check ran on these words and every flag has an answer
   const [consent, setConsent] = useState(false);            // the coordinator consents to publish
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
@@ -117,7 +118,7 @@ export default function PostNeed() {
   async function publish(e) {
     e.preventDefault();
     setTouched(true);
-    if (!readBack || !consent || publishing) return;
+    if (!readBack || !consent || !dignity.ready || publishing) return;
     if (Object.keys(errors).length) {
       document.getElementById(`need-${Object.keys(errors)[0]}`)?.focus();
       return;
@@ -201,6 +202,8 @@ export default function PostNeed() {
             onUse={(key, rewrite) => (key === 'original'
               ? setOriginal(o => ({ ...o, text: rewrite }))
               : setForm(f => ({ ...f, [key]: rewrite })))}
+            onStatus={setDignity}
+            expectAi={Boolean(capabilities?.llm)}
           />
 
           {result.source === 'ai' ? (
@@ -301,6 +304,14 @@ export default function PostNeed() {
               <span>{t('As the coordinator,')} <strong className="font-semibold">{t('I consent to publishing this need')}</strong>.</span>
             </label>
 
+            {!dignity.ready && readBack && consent && (
+              <p className="mt-3 text-sm text-ink-soft" data-testid="dignity-gate">
+                {dignity.failed ? t('The Dignity Check could not run. Check again before you publish.')
+                  : dignity.changed ? t('The card changed since the Dignity Check. Check again before you publish.')
+                  : dignity.flagged && !dignity.decided ? t('Please answer each Dignity Check flag above (use the rewrite, or keep your words) before you publish.')
+                  : t('Waiting for the Dignity Check…')}
+              </p>
+            )}
             {touched && Object.keys(errors).length > 0 && (
               <p className="mt-3 text-sm font-medium text-ember" role="alert">{t('Please fill the fields marked above.')}</p>
             )}
@@ -308,7 +319,7 @@ export default function PostNeed() {
 
             <div className="mt-5 flex flex-col-reverse gap-3 @md:flex-row @md:justify-between">
               <Button variant="secondary" onClick={startAgain} disabled={publishing}>{t('Start again')}</Button>
-              <Button type="submit" disabled={!readBack || !consent || publishing}>{t(publishing ? 'Publishing…' : 'Publish need')}</Button>
+              <Button type="submit" disabled={!readBack || !consent || !dignity.ready || publishing}>{t(publishing ? 'Publishing…' : 'Publish need')}</Button>
             </div>
           </Card>
         </form>
