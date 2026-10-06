@@ -1,0 +1,40 @@
+// Run: npm run check   (from services/bridge, with a filled .env)
+// Optional: npm run check -- path/to/tamil-16khz.wav   to also test speech to text.
+// Prints only results and timings, never the keys.
+const fs = require('fs');
+const { callLLM } = require('../src/llm');
+const { transcribe, translate } = require('../src/bhashini');
+
+const PROMPT = `You turn a community coordinator's words into a need card. Return ONLY JSON.
+Describe the GROUP, never one person. No names, ages, income, caste, religion or health details.`;
+
+async function step(name, fn) {
+  const t0 = Date.now();
+  try {
+    const result = await fn();
+    console.log(`PASS  ${name}  (${Date.now() - t0} ms)\n      ${result}`);
+  } catch (e) {
+    console.log(`FAIL  ${name}  (${Date.now() - t0} ms)\n      ${e.message}`);
+    process.exitCode = 1;
+  }
+}
+
+(async () => {
+  await step('Groq draft-need', async () => {
+    const raw = await callLLM(PROMPT,
+      '12 students of class 6 to 8 want help reading English aloud, Saturday mornings at the government school in Kanchipuram', 'en');
+    const draft = JSON.parse(raw);
+    return `title="${draft.title}", groupSize=${draft.groupSize}, keys=${Object.keys(draft).length}`;
+  });
+
+  await step('Bhashini translate ta -> en', () =>
+    translate({ text: 'சனிக்கிழமை காலை பள்ளியில் குழந்தைகளுக்கு ஆங்கிலம் படிக்க உதவி வேண்டும்', from: 'ta' }));
+
+  const wav = process.argv[2];
+  if (wav) {
+    await step('Bhashini speech to text (ta)', () =>
+      transcribe({ audioBase64: fs.readFileSync(wav).toString('base64'), language: 'ta' }));
+  } else {
+    console.log('SKIP  Bhashini speech to text (pass a 16 kHz Tamil .wav file to test it)');
+  }
+})();

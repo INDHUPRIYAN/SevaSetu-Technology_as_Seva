@@ -1,0 +1,15 @@
+{
+  "name": "sevasetu-person-a",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev -w services/gateway\" \"npm:dev -w services/core\" \"npm:dev -w apps/web\"",
+    "seed": "node seed/seed-core.js"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

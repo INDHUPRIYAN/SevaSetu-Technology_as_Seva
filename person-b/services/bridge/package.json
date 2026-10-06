@@ -1,0 +1,8 @@
+{
+  "name": "bridge",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "check": "node --env-file=.env scripts/check-providers.js"
+  }
+}
