@@ -2,8 +2,8 @@
 // Optional: npm run check -- path/to/tamil-16khz.wav   to also test speech to text.
 // Prints only results and timings, never the keys.
 const fs = require('fs');
-const { callLLM } = require('../src/llm');
-const { transcribe, translate } = require('../src/bhashini');
+const { callLLM } = require('../src/providers/llm');
+const { transcribe, translate, speak } = require('../src/providers/language');
 
 const PROMPT = `You turn a community coordinator's words into a need card. Return ONLY JSON.
 Describe the GROUP, never one person. No names, ages, income, caste, religion or health details.`;
@@ -29,6 +29,11 @@ async function step(name, fn) {
 
   await step('Bhashini translate ta -> en', () =>
     translate({ text: 'சனிக்கிழமை காலை பள்ளியில் குழந்தைகளுக்கு ஆங்கிலம் படிக்க உதவி வேண்டும்', from: 'ta' }));
+
+  await step('Bhashini text to speech (ta)', async () => {
+    const out = await speak({ text: 'வணக்கம். இது ஒரு சோதனை.', language: 'ta' });
+    return `${out.format}, ${Math.round(out.audioBase64.length * 3 / 4 / 1024)} KB of audio (not saved)`;
+  });
 
   const wav = process.argv[2];
   if (wav) {

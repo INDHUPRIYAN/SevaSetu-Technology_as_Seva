@@ -13,13 +13,14 @@ function createApp(deps = {}) {
 
   app.get('/health', (req, res) => res.json({ ok: true, service: 'bridge' }));
 
-  const llm = require('./llm');
-  const bhashini = require('./bhashini');
+  const llm = require('./providers/llm');
+  const language = require('./providers/language');
   const providers = {
     callLLM: llm.callLLM,
     callJSON: llm.callJSON,
-    translate: bhashini.translate,
-    transcribe: bhashini.transcribe,
+    translate: language.translate,
+    transcribe: language.transcribe,
+    speak: language.speak,
     loadWisdom: loadVerified,
     draftTimeoutMs: Number(process.env.DRAFT_TIMEOUT_MS) || 8000,       // never wait more than 8 s on stage
     translateTimeoutMs: Number(process.env.TRANSLATE_TIMEOUT_MS) || 4000,

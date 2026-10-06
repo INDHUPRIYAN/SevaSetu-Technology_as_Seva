@@ -1,5 +1,6 @@
-// services/bridge/src/bhashini.js — the one place that talks to Bhashini
-// Two steps per task: a config call (which model, which URL, which key), then a compute call.
+// services/bridge/src/bhashini.js — the one place that talks to Bhashini (speech to text, translation, text to
+// speech). Two steps per task: a config call (which model, which URL, which key), then a compute call.
+// Docs: https://bhashini.gitbook.io/bhashini-apis (pipeline config call, pipeline compute call).
 const CONFIG_URL = 'https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline';
 const PIPELINE_ID = process.env.BHASHINI_PIPELINE_ID || '64392f96daac500b55c543cd';   // MeitY pipeline
 const ONE_HOUR = 60 * 60 * 1000;
@@ -57,7 +58,7 @@ async function compute(config, taskConfig, inputData) {
   });
   if (!res.ok) throw new Error(`Bhashini compute ${res.status}: ${await res.text()}`);
   const body = await res.json();
-  return body.pipelineResponse[0].output[0];
+  return body.pipelineResponse[0];                 // { taskType, config, output, audio }
 }
 
 // Speech to text. audioBase64 must be WAV (or FLAC) that really has this sampling rate.
@@ -69,7 +70,7 @@ async function transcribe({ audioBase64, language, audioFormat = 'wav', sampling
     { taskType: 'asr', config: { language: lang, audioFormat, samplingRate } },
     { audio: [{ audioContent: audioBase64 }] }
   );
-  return out.source;
+  return out.output[0].source;
 }
 
 // Text to text, e.g. Tamil ('ta') to English ('en').
@@ -81,7 +82,22 @@ async function translate({ text, from, to = 'en' }) {
     { taskType: 'translation', config: { language: lang } },
     { input: [{ source: text }] }
   );
-  return out.target;
+  return out.output[0].target;
 }
 
-module.exports = { transcribe, translate };
+// Text to speech (docs: pipeline-compute-call → request payload, taskType "tts"). Returns base64 WAV.
+// The audio is handed to the browser and dropped; it is never stored.
+async function speak({ text, language, gender = process.env.BHASHINI_TTS_GENDER || 'female', samplingRate = 8000 }) {
+  const lang = { sourceLanguage: language };
+  const config = await getConfig('tts', lang);
+  const out = await compute(
+    config,
+    { taskType: 'tts', config: { language: lang, gender, samplingRate } },
+    { input: [{ source: text }] }
+  );
+  const audio = out.audio?.[0]?.audioContent;
+  if (!audio) throw new Error('Bhashini returned no audio');
+  return { audioBase64: audio, format: 'wav', samplingRate };
+}
+
+module.exports = { transcribe, translate, speak };
