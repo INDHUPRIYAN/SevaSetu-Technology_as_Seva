@@ -127,9 +127,11 @@ const pill = {
   active: 'bg-emerald-50 text-emerald-700',
   paused: 'bg-cream-200 text-ink-700',
   finished: 'bg-saffron-100 text-saffron-700',
+  matched: 'bg-amber-100 text-amber-800',
+  'handed-over': 'bg-emerald-50 text-emerald-700',
 };
 
-const label = { gap: 'cannot come', requested: 'visit requested', visited: 'visited' };
+const label = { gap: 'cannot come', requested: 'visit requested', visited: 'visited', 'handed-over': 'handed over' };
 
 export function StatusPill({ status }) {
   return (

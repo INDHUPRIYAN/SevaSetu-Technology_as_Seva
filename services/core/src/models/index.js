@@ -75,4 +75,17 @@ const Circle = models.Circle || model('Circle', new Schema({
   memberIds: [{ type: ObjectId, ref: 'User' }],
 }));
 
-module.exports = { User, Org, Need, Visit, Commitment, Circle };
+// Resource Connect: one organisation offers things, another asks for them. Things only, never people.
+const Resource = models.Resource || model('Resource', new Schema({
+  orgId: { type: ObjectId, ref: 'Org', required: true },
+  kind: { type: String, enum: ['offer', 'request'], required: true },
+  type: { type: String, required: true, lowercase: true, trim: true, maxlength: 60 },   // "tablets"
+  quantity: { type: Number, required: true, min: 1, max: 10000 },
+  availableFrom: { type: String, default: null },        // YYYY-MM-DD: when an offer is ready / a request is needed
+  note: { type: String, default: '', maxlength: 300 },
+  status: { type: String, enum: ['open', 'matched', 'handed-over'], default: 'open' },
+  matchedWith: { type: ObjectId, ref: 'Resource', default: null },
+  handedOverAt: { type: Date, default: null },
+}, { timestamps: true }));
+
+module.exports = { User, Org, Need, Visit, Commitment, Circle, Resource };

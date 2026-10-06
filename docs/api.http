@@ -1,4 +1,4 @@
-### SevaSetu — all 29 endpoints, in plan order. Works with the VS Code "REST Client" extension
+### SevaSetu — all endpoints, in plan order (1–29, plus 27b and Resource Connect). Works with the VS Code "REST Client" extension
 ### (or JetBrains HTTP Client). Every request goes to the gateway, which checks the token and sets
 ### x-user-id / x-user-role for the services.
 ###
@@ -48,7 +48,7 @@ Authorization: Bearer {{newvol}}
 GET {{gw}}/api/needs/{{needId}}
 Authorization: Bearer {{newvol}}
 
-### 6. Publish a need (coordinator; consent.readBack must be true). Body = the endpoint 28 draft + consent (B3)
+### 6. Publish a need (coordinator; consent.readBack AND consent.coordinatorConsent must be true). Body = the endpoint 28 draft + consent (B3)
 POST {{gw}}/api/needs
 Authorization: Bearer {{coord}}
 Content-Type: application/json
@@ -63,7 +63,7 @@ Content-Type: application/json
   "rhythm": { "day": "Saturday", "start": "10:30", "end": "12:00" },
   "weeks": 4,
   "place": "Government School, Kanchipuram",
-  "consent": { "readBack": true, "agreedOn": "2026-10-06" }
+  "consent": { "readBack": true, "coordinatorConsent": true, "agreedOn": "2026-10-06" }
 }
 
 ### 7. Request a Listen-First visit (volunteer)
@@ -103,12 +103,12 @@ Authorization: Bearer {{vol}}
 GET {{gw}}/api/commitments/{{commitmentId}}
 Authorization: Bearer {{vol}}
 
-### 14. I cannot come this week
+### 14. I cannot come this week (the note is optional; the circle sees it on the gap)
 POST {{gw}}/api/commitments/{{commitmentId}}/absence
 Authorization: Bearer {{vol}}
 Content-Type: application/json
 
-{ "week": 3 }
+{ "week": 3, "note": "We stopped at chapter 3." }
 
 ### 15. Cover for a circle member
 POST {{gw}}/api/commitments/{{commitmentId}}/cover
@@ -124,12 +124,26 @@ Content-Type: application/json
 
 { "text": "Would you like to keep coming for four more weeks?" }
 
-### 17. Continue / pause / finish
+### 17. Continue (needs an invitation first; adds 4 weeks)
 PATCH {{gw}}/api/commitments/{{commitmentId}}/continue
 Authorization: Bearer {{vol}}
 Content-Type: application/json
 
 { "choice": "continue" }
+
+### 17. Pause (needs a future return date)
+PATCH {{gw}}/api/commitments/{{commitmentId}}/continue
+Authorization: Bearer {{vol}}
+Content-Type: application/json
+
+{ "choice": "pause", "returnDate": "2026-12-01" }
+
+### 17. Finish (needs a handover note; the need opens again and shows the note to the next volunteer)
+PATCH {{gw}}/api/commitments/{{commitmentId}}/continue
+Authorization: Bearer {{vol}}
+Content-Type: application/json
+
+{ "choice": "finish", "handover": "They love reading aloud in pairs. Begin with the story they choose." }
 
 ### 18. My circle
 GET {{gw}}/api/circles/mine
@@ -214,8 +228,14 @@ Authorization: Bearer {{vol}}
 GET {{gw}}/api/wisdom?theme=patience
 Authorization: Bearer {{vol}}
 
-### 27. Why? (R17: no-ranks, no-photos, no-hours, listen-first)
+### 27. Why? → { title, teaching: { quote, source } | null, interpretation, decision }
+### rules: listen-first, no-hours, no-ranks, no-photos, private-diary, community-confirmation
 GET {{gw}}/api/wisdom/why/no-ranks
+Authorization: Bearer {{vol}}
+
+### 27b. A teaching for one moment → { title, teaching: { quote, source }, interpretation, practice }
+### moments: before-listen, commit, hard-day, continue
+GET {{gw}}/api/wisdom/moment/before-listen
 Authorization: Bearer {{vol}}
 
 ### 27. R18: unknown rule → 404
@@ -275,3 +295,29 @@ Authorization: Bearer {{vol}}
 Content-Type: application/json
 
 {}
+
+########################################################################
+### Resource Connect (core, coordinators only)
+########################################################################
+
+### Offer or ask for something; the answer carries up to 3 suggested matches
+POST {{gw}}/api/resources
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "kind": "request", "type": "tablets", "quantity": 10, "availableFrom": "2026-11-01" }
+
+### My organisation's offers and requests, open ones with suggestions
+GET {{gw}}/api/resources/mine
+Authorization: Bearer {{coord}}
+
+### Connect my resource with a suggested one (paste both ids)
+POST {{gw}}/api/resources/PASTE-MY-RESOURCE-ID/connect
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "withId": "650000000000000000000061" }
+
+### The things changed hands
+POST {{gw}}/api/resources/PASTE-MY-RESOURCE-ID/handover
+Authorization: Bearer {{coord}}

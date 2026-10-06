@@ -14,6 +14,7 @@ import Wisdom from './pages/Wisdom';
 import Diary from './pages/Diary';
 import ThenAndNow from './pages/ThenAndNow';
 import PostNeed from './pages/PostNeed';
+import Resources from './pages/Resources';
 
 function RequireLogin() {
   const token = useAuth(s => s.token);
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
         { path: '/profile', element: <Profile /> },
         { path: '/coordinator', element: <OnlyFor role="coordinator"><Coordinator /></OnlyFor> },
         { path: '/coordinator/post-need', element: <OnlyFor role="coordinator"><PostNeed /></OnlyFor> },
+        { path: '/coordinator/resources', element: <OnlyFor role="coordinator"><Resources /></OnlyFor> },
         { path: '/wisdom', element: <Wisdom /> },
         // the diary explains itself to a coordinator ("This diary is private") instead of redirecting
         { path: '/reflect/:commitmentId', element: <Diary /> },

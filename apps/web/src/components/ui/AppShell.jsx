@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { BookOpen, CircleUser, House, LayoutDashboard, CirclePlus, LogOut, Search, Users } from 'lucide-react';
+import { BookOpen, CircleUser, House, LayoutDashboard, CirclePlus, LogOut, Package, Search, Users } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { Wordmark } from './Brand';
 import { Avatar } from './Bits';
@@ -15,6 +15,7 @@ const volunteerTabs = [
 const coordinatorTabs = [
   { to: '/coordinator', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/coordinator/post-need', label: 'Post a Need', icon: CirclePlus },
+  { to: '/coordinator/resources', label: 'Resources', icon: Package },
   { to: '/wisdom', label: 'Wisdom', icon: BookOpen },
   { to: '/profile', label: 'Profile', icon: CircleUser },
 ];

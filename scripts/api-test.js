@@ -212,6 +212,21 @@ async function login(userId) {
     call('GET', `/api/reflect/then-and-now?commitmentId=${ids.commitments.seeded}`, { token: ARJUN }),
     call('GET', '/api/wisdom', { token: VOL }),
   ]);
+  // Resource Connect: ask for 10 tablets, the college's offer is suggested, connect, hand over
+  r = await call('POST', '/api/resources', { token: COORD, body: { kind: 'request', type: 'Tablets', quantity: 10 } });
+  const request = r.data;
+  const suggested = request?.candidates?.[0];
+  const linked = await call('POST', `/api/resources/${request?._id}/connect`, { token: COORD, body: { withId: suggested?._id } });
+  const twice = await call('POST', `/api/resources/${request?._id}/connect`, { token: COORD, body: { withId: suggested?._id } });
+  const handed = await call('POST', `/api/resources/${request?._id}/handover`, { token: COORD });
+  const volunteerBlocked = await call('GET', '/api/resources/mine', { token: VOL });
+  check('X7  resource connect: match, connect, hand over (coordinators only)',
+    r.status === 201 && suggested?.org?.name === 'Sri Ramana Arts College' && suggested?.type === 'tablets'
+      && linked.data?.status === 'matched' && twice.status === 409 && handed.data?.status === 'handed-over'
+      && handed.data?.matchedWith?.status === 'handed-over' && volunteerBlocked.status === 403,
+    `create ${r.status}, suggested ${suggested?.org?.name}, connect ${linked.data?.status}, again ${twice.status}, handover ${handed.data?.status}, volunteer ${volunteerBlocked.status}`);
+
+  sample.push(await call('GET', '/api/resources/mine', { token: COORD }));
   const bannedKeys = keysIn(sample.map(x => x.data));
   check('X6  no hours, points, ranks, scores or personal fields in any response', bannedKeys.length === 0, `found ${[...new Set(bannedKeys)]}`);
 

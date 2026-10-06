@@ -6,7 +6,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../services/core/.env'), quiet: true });
 const mongoose = require('mongoose');
 const ids = require('./ids');
-const { User, Org, Need, Visit, Commitment, Circle } = require('../services/core/src/models');
+const { User, Org, Need, Visit, Commitment, Circle, Resource } = require('../services/core/src/models');
 
 const oid = id => new mongoose.Types.ObjectId(id);
 const today = new Date().toISOString().slice(0, 10);
@@ -24,6 +24,7 @@ const orgs = [
   { _id: ids.orgs.govtSchool, name: 'Government School', place: 'Government School, Kanchipuram', city: 'Kanchipuram', distanceKm: 3, verified: true },
   { _id: ids.orgs.org2, name: 'Anbu Community Library', place: 'Anbu Community Library, Tambaram', city: 'Chennai', distanceKm: 5, verified: true },
   { _id: ids.orgs.org3, name: 'Sunrise Elders Home', place: 'Sunrise Elders Home, Guduvanchery', city: 'Chennai', distanceKm: 8, verified: true },
+  { _id: ids.orgs.college, name: 'Sri Ramana Arts College', place: 'Sri Ramana Arts College, Kanchipuram', city: 'Kanchipuram', distanceKm: 6, verified: true },
 ];
 
 const card = (id, orgId, fields) => ({
@@ -140,6 +141,14 @@ const commitments = [{
   createdAt: daysAgo(14),
 }];
 
+// Resource Connect: things other organisations can offer (demo: the school asks for 10 tablets)
+const inDays = n => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const resources = [
+  { _id: ids.resources.collegeTablets, orgId: ids.orgs.college, kind: 'offer', type: 'tablets', quantity: 10, availableFrom: inDays(7), note: 'Used for one year, charged and reset. Cases included.' },
+  { _id: ids.resources.libraryBooks, orgId: ids.orgs.org2, kind: 'offer', type: 'storybooks', quantity: 30, availableFrom: inDays(3), note: 'Tamil and English, for ages 8 to 12.' },
+  { _id: ids.resources.eldersChairs, orgId: ids.orgs.org3, kind: 'request', type: 'folding chairs', quantity: 12, availableFrom: inDays(14), note: 'For the garden mornings.' },
+];
+
 const circles = [{
   _id: ids.circles.main,
   name: 'Saturday Circle',
@@ -151,7 +160,7 @@ async function seed() {
   await mongoose.connect(process.env.MONGO_URI);
   const db = mongoose.connection.db.databaseName;
 
-  const plan = [[User, users], [Org, orgs], [Need, needs], [Visit, visits], [Commitment, commitments], [Circle, circles]];
+  const plan = [[User, users], [Org, orgs], [Need, needs], [Visit, visits], [Commitment, commitments], [Circle, circles], [Resource, resources]];
   for (const [Model, docs] of plan) {
     await Model.deleteMany({});
     await Model.insertMany(docs.map(d => ({ ...d, _id: oid(d._id) })));

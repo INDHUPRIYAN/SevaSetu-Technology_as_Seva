@@ -13,6 +13,7 @@ module.exports = {
     govtSchool: '650000000000000000000011',        // Government School, Kanchipuram (verified, 3 km)
     org2:       '650000000000000000000012',
     org3:       '650000000000000000000013',
+    college:    '650000000000000000000014',        // offers resources (Resource Connect)
   },
   needs: {
     englishReading: '650000000000000000000021',    // the seeded volunteer's need (filled)
@@ -28,6 +29,11 @@ module.exports = {
   },
   commitments: {
     seeded: '650000000000000000000041',            // reflect entries use this as commitmentId
+  },
+  resources: {
+    collegeTablets:  '650000000000000000000061',
+    libraryBooks:    '650000000000000000000062',
+    eldersChairs:    '650000000000000000000063',
   },
   circles: {
     main: '650000000000000000000051',

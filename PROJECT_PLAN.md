@@ -110,53 +110,58 @@ process as a fallback if a host misbehaves.
 
 ## 6. What we build — by service
 
-### core (Person A) — endpoints 1–20
+### core — endpoints 1–20, plus Resource Connect
 
 | Area | # | What |
 |---|---|---|
 | Auth | 1–3 | List demo users, demo login (JWT 12h), who am I |
-| Needs | 4–6 | Filtered search (max 3, with `fitReason`), need detail, post a need (coordinator + consent only) |
-| Visits | 7–10 | Request visit, my visits, "what I heard", yes/no decision → `agreed` |
-| Commitments | 11–17 | Commit (only after `agreed`), list, detail, absence, cover (circle only), invitation, continue/pause/finish |
-| Other | 18–20 | My circle (+ open gaps), coordinator overview, demo time travel |
+| Needs | 4–6 | Filtered search (max 3, with `fitReason`), need detail (with the last volunteer's handover note), post a need (coordinator only; community confirmation **and** coordinator consent, else 400) |
+| Visits | 7–10 | Request visit, my visits, "what I heard", yes/no decision → `agreed` (no decision before the visit, 409) |
+| Commitments | 11–17 | Commit (only after `agreed`), list, detail, absence (with an optional note for whoever covers), cover (circle only), invitation, continue / pause (with a return date) / finish (with a handover note; the need opens again) |
+| Other | 18–20 | My circle (+ open gaps with notes, + handover notes), coordinator overview, demo time travel |
+| Resource Connect | — | Offer or ask for things; matches of the same type from other organisations (same city first); connect; hand over |
 
-### reflect (Person B) — endpoints 21–27
+### reflect — endpoints 21–27, plus 27b
 
 | # | What |
 |---|---|
 | 21 | This week's diary question (4 themes rotate: patience, listening, effort, received) |
 | 22–23 | Save / list **my own** diary entries (one per week) |
 | 24 | Then and Now: first entry vs latest |
-| 25–27 | Wisdom of the day, wisdom by theme, "Why?" teaching for a rule |
+| 25–26 | Wisdom of the day, wisdom by theme — verbatim quotes with their source |
+| 27 | "Why?" for a rule: verified teaching (or none) → interpretation → product decision |
+| 27b | A teaching for one moment (before-listen, commit, hard-day, continue): verified teaching → interpretation → practice |
 
-### bridge (Person B) — endpoints 28–29
+### bridge — endpoints 28–29
 
 | # | What |
 |---|---|
-| 28 | Coordinator's words → draft need card. Bhashini translates Tamil/Hindi → Groq (`openai/gpt-oss-20b`, strict JSON) drafts → privacy flags. 8 s timeout, falls back to a fixed draft |
+| 28 | Coordinator's words → draft need card. Bhashini translates Tamil/Hindi → Groq (`openai/gpt-oss-20b`, strict JSON) drafts → privacy flags. 8 s timeout, falls back to a fixed draft. Never publishes |
 | 29 | Speech → text through Bhashini. Audio is never stored |
 
 ---
 
 ## 7. Screens
 
-| Route | Screen | Owner |
-|---|---|---|
-| `/login` | Demo user picker | A |
-| `/` | Home: banner, tiles, Wisdom card, "Continue Your Seva" | A (+ B's `WisdomCard`) |
-| `/opportunities` | 3 questions → up to 3 needs | A |
-| `/needs/:id` | Need card, Verified mark, "Visit and listen" | A (+ B's `WhyLink`) |
-| `/needs/:id/listen` | Guest briefing → request → what I heard → yes/no | A |
-| `/commit/:visitId` | One sentence, 4 weeks | A |
-| `/my-seva` | Week X of N, sessions, absence/cover, circle, invitation | A |
-| `/profile` | Conduct rules, switch user, log out | A |
-| `/coordinator` | Pending visits, week grid, send invitation, time travel | A |
-| `/wisdom` | Teachings with sources, theme chips | B |
-| `/reflect/:commitmentId` | Private diary, one question | B |
-| `/reflect/:commitmentId/then-and-now` | Week 1 words beside latest words | B |
-| `/coordinator/post-need` | Voice/text → AI draft → edit → read-back → publish | B |
+| Route | Screen |
+|---|---|
+| `/login` | Demo user picker |
+| `/` | Home: banner, tiles, Wisdom card, "Continue Your Seva" |
+| `/opportunities` | 3 questions → up to 3 needs |
+| `/needs/:id` | Need card, Verified mark, "Why?", handover from the last volunteer, "Visit and listen" |
+| `/needs/:id/listen` | Guest briefing + teaching → request → what I heard → yes/no |
+| `/commit/:visitId` | One commitment sentence (prefilled from the rhythm), 4 weeks, teaching |
+| `/my-seva` | Week X of N, weeks, "I cannot come" + note, circle cover, invitation + teaching, pause / finish with handover |
+| `/profile` | Conduct rules with "Why?", switch user, log out |
+| `/coordinator` | Pending visits, open gaps, week grid, "would the community like them to continue?", invitation, time travel |
+| `/coordinator/post-need` | Voice/text → AI draft → edit → read back → community confirms + coordinator consents → publish |
+| `/coordinator/resources` | Resource Connect |
+| `/wisdom` | Teachings with sources, theme chips |
+| `/reflect/:commitmentId` | Private diary, one question, "Why private?", teaching after a hard day |
+| `/reflect/:commitmentId/then-and-now` | Week 1 words beside latest words |
 
-Shared B components: `WisdomCard`, `WhyLink`, `WhyModal`, `VoiceInput` (mic on Post a Need only).
+Shared components: `WisdomCard`, `WhyLink`, `WhyModal`, `WisdomMoment`, `VoiceInput` (mic on Post a Need only;
+the diary stays type-only so private words never leave for a third party), `Card`, `Button`, `AppShell`.
 
 ---
 
@@ -164,13 +169,14 @@ Shared B components: `WisdomCard`, `WhyLink`, `WhyModal`, `VoiceInput` (mic on P
 
 | Database | Collections | Notes |
 |---|---|---|
-| `seva_core` | users, orgs, needs, visits, commitments (with sessions), circles | No hours field. No personal fields for people served |
-| `seva_reflect` | questions, entries, wisdom, whys | Entries are private, indexed on `{ userId, commitmentId, week }` |
+| `seva_core` | users, orgs, needs, visits, commitments (with embedded weekly sessions), circles, resources | No hours field. No personal fields for people served |
+| `seva_reflect` | questions, entries, wisdom, whys, moments | Entries are private, indexed on `{ userId, commitmentId, week }` |
 
 Both seed scripts use the fixed ids in [seed/ids.js](seed/ids.js), so the seeded commitment in
 core and the seeded diary entry in reflect line up. Seeds clear their collections first, so they are
-safe to rerun. Every Vivekananda quote must be checked against the *Complete Works* with volume and
-page. Unverified quotes are left out.
+safe to rerun. Every Vivekananda quote is verbatim from the *Complete Works* with its volume and piece
+([seed/wisdom-quotes.js](seed/wisdom-quotes.js)); page numbers and the final `checked: true` wait for
+someone to look in a printed volume.
 
 ---
 
@@ -183,66 +189,46 @@ These are enforced in code and covered by tests, not just hidden in the UI.
 3. **Dignity of the people served.** No names, ages, income, caste, religion, health or photos stored or shown.
    Words we avoid: poor, needy, beneficiary, donate.
 4. **The diary is private.** No other volunteer and no coordinator can read it. No AI, scoring or sentiment on diary text.
-5. **AI only drafts.** A coordinator edits, reads the card back to the community, ticks consent, and only then publishes.
+5. **AI only drafts.** A coordinator edits, reads the card back, the community confirms, the coordinator consents, and only then publishes.
 6. **Identity is never trusted from the browser.** The gateway strips and resets `x-user-*` headers.
 7. **Keys stay in `bridge`.** No Groq or Bhashini key in the frontend or in git.
 
 ---
 
-## 10. Team split and status
+## 10. Status
 
-| Part | Owner | Status |
+The two halves (Person A and Person B's `person-b-build` branch) are merged into one app at the repo
+root. Everything in sections 6–9 is built and covered by tests:
+
+| Suite | Command | Checks |
 |---|---|---|
-| Gateway, core (1–20), seed-core, `mono.js` | Person A | Built, in working tree |
-| App shell + 9 screens, UI kit, test scripts (T1–T28, S1–S15) | Person A | Built, in working tree |
-| Render blueprint (core + gateway), Vercel config | Person A | Written |
-| Stand-ins for B's components/pages (`integration/personB.jsx`) | Person A | In place ("Coming soon") |
-| Bridge provider clients (`llm.js`, `bhashini.js`, `check-providers.js`) | Person B | Written |
-| reflect service (21–27) + seed-reflect | Person B | Not started (parked) |
-| bridge routes (28–29) + fallback draft | Person B | Not started (parked) |
-| `WisdomCard`, `WhyLink`, `WhyModal`, `VoiceInput` + 4 pages | Person B | Not started (parked) |
-| `docs/api.http` | Person B | Not started |
-
----
+| API and product rules | `npm run test:api` | T1–T28, T25b, X1–X7 |
+| Screens in Chrome | `npm run test:ui`, `npm run test:ui:desktop` | 28 checks at 390 px and at 1440 px |
+| Unit and component | `npm test` | reflect, bridge, web |
 
 ## 11. Roadmap
 
-### Phase 1 — Person A's volunteer loop (done, needs commit + deploy check)
+### Done
 
-- [ ] Commit the Person A work now in the working tree
-- [ ] Seed Atlas, deploy core + gateway on Render, web on Vercel
-- [ ] T2–T26, T28 and S1–S5, S7–S15 pass on the live URLs, twice, in incognito
+- [x] Core volunteer loop, coordinator dashboard, Post a Need, diary, Then and Now, wisdom, "Why?"
+- [x] Pause with a return date, finish with a handover, absence notes, Resource Connect
+- [x] Wording sweep: no "beneficiary / poor / needy / donate / hours / rank / points" in the UI
+- [x] `mono.js` runs all four services in one process
 
-### Phase 2 — Person B's half
+### Still to do
 
-- [ ] Copy the service template into `reflect` and `bridge`; both answer `/health`
-- [ ] Run `npm run check` in bridge to confirm Groq + Bhashini work. If Tamil speech fails, keep the text box as plan B
-- [ ] reflect endpoints 21–27 + `seed-reflect.js` (8 checked quotes, 4 whys, 4 questions, 1 seeded entry)
-- [ ] bridge endpoints 28–29 + `fallbackDraft.json`
-- [ ] Components and 4 pages, using A's `api`, `useAuth`, `Card`, `Button`
-- [ ] R1–R19 (R10–R12 diary privacy first), B1–B14, U1–U18 pass
-
-### Phase 3 — Integration ([docs/INTEGRATION.md](docs/INTEGRATION.md))
-
-- [ ] Check for path collisions, then `git mv` both folders to the final tree
-- [ ] Fix seed imports, add reflect + bridge to `package.json` and `mono.js`
-- [ ] Set `REFLECT_URL` and `BRIDGE_URL` on the gateway
-- [ ] Swap stand-ins in `integration/personB.jsx` for B's real files
-- [ ] T1, T27, S6, D5 now pass
-
-### Phase 4 — Demo ready
-
-- [ ] D1–D6 deployment checks (cold start, no console/CORS errors, `.env` not in git, real phone)
-- [ ] Wording sweep: no "beneficiary / poor / needy / donate / hours / rank / points"
-- [ ] Joint demo run passes **twice** without touching code
-- [ ] Backup demo video recorded; README has the live URLs, local setup, seeding, demo steps
+- [ ] Add the Groq and Bhashini keys to `services/bridge/.env`, run `npm run check` with a Tamil recording
+- [ ] Tick each quote off against a printed volume (`checked: true`, add the page)
+- [ ] Seed Atlas, deploy the four services on Render and the web app on Vercel
+- [ ] Run `test:api` and `test:ui` against the live URLs, twice, in incognito; check on a real phone
+- [ ] Record a backup demo video; add the live URLs to the README
 
 ---
 
 ## 12. The demo (12 steps)
 
 1. Open `/health/all`: every service is `true`.
-2. Coordinator → Post a Need → speaks/types a Tamil sentence → draft appears → ticks read-back → publishes.
+2. Coordinator → Post a Need → speaks/types a Tamil sentence → draft appears → edits → reads it back → community confirms + consent → publishes.
 3. New volunteer → Needs → 3 questions → sees the new need.
 4. Opens the card → taps "Why?" → reads the teaching.
 5. Visit and listen → writes what she heard → says yes.

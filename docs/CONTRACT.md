@@ -8,8 +8,8 @@ relies on this page, so change it together with every side it touches.
 | Service | Port | Database | Paths it answers | Endpoints |
 |---|---|---|---|---|
 | gateway | 8080 | none | `/health`, `/health/all`, forwards everything else | — |
-| core | 4001 | `seva_core` | `/api/auth`, `/api/needs`, `/api/visits`, `/api/commitments`, `/api/circles`, `/api/coordinator`, `/api/demo` | 1–20 |
-| reflect | 4002 | `seva_reflect` | `/api/reflect`, `/api/wisdom` | 21–27 |
+| core | 4001 | `seva_core` | `/api/auth`, `/api/needs`, `/api/visits`, `/api/commitments`, `/api/circles`, `/api/coordinator`, `/api/demo`, `/api/resources` | 1–20, Resource Connect |
+| reflect | 4002 | `seva_reflect` | `/api/reflect`, `/api/wisdom` | 21–27, 27b (moments) |
 | bridge | 4003 | none | `/api/bridge` | 28–29 |
 | web | 5174 | none | talks to the gateway only | — |
 
@@ -49,8 +49,9 @@ No other service and no frontend code calls these providers or holds their keys.
 
 | Touch point | Rule |
 |---|---|
-| Need card shape | Endpoint 28's `draft` has exactly the keys endpoint 6 accepts: `title, want, serveUsWell, youWillLearn, groupSize, interestTags, rhythm { day, start, end }, weeks, place`. Post a Need adds `consent: { readBack, agreedOn }` |
+| Need card shape | Endpoint 28's `draft` has exactly the keys endpoint 6 accepts: `title, want, serveUsWell, youWillLearn, groupSize, interestTags, rhythm { day, start, end }, weeks, place`. Post a Need adds `consent: { readBack, coordinatorConsent, agreedOn }`, both `true` |
 | Current week | The diary reads `currentWeek` from endpoint 13 (core); reflect never looks it up itself |
 | Seeded ids | `seed-core.js` and `seed-reflect.js` both use [seed/ids.js](../seed/ids.js), so the seeded commitment and diary entry line up |
 | Web building blocks | `lib/api.js` (unwraps `{ data }`), `lib/auth.js` (`useAuth`), `components/ui/*`, the Tailwind theme in `index.css` |
-| `WhyLink` rule keys | Screens pass `no-hours`, `listen-first`, `no-photos`; reflect seeds `no-ranks`, `no-photos`, `no-hours`, `listen-first` |
+| `WhyLink` rule keys | `listen-first`, `no-hours`, `no-ranks`, `no-photos`, `private-diary`, `community-confirmation`, all seeded by reflect |
+| Quotes | Every quote in wisdom, whys and moments is verbatim from the Complete Works and listed once in [seed/wisdom-quotes.js](../seed/wisdom-quotes.js); our own words (interpretation, decision, practice) are always separate fields |

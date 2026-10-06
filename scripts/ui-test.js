@@ -94,8 +94,10 @@ async function reloadUntil(page, locator, tries = 3) {
     await meera.waitForURL('**/wisdom');
     await meera.locator('blockquote').first().waitFor();
     const all = await meera.locator('blockquote').count();
+    const filtered = meera.waitForResponse(r => r.url().includes('/api/wisdom?theme=patience'));
     await meera.getByRole('button', { name: 'Patience' }).click();
-    await meera.waitForFunction(n => document.querySelectorAll('blockquote').length < n, all);
+    await filtered;
+    await meera.waitForFunction(n => document.querySelectorAll('blockquote').length < n, all, { polling: 200 });
     await fits(meera);
     check('U1  wisdom card + Wisdom page', source > 0, 'no source on the wisdom card');
   });
@@ -371,6 +373,21 @@ async function reloadUntil(page, locator, tries = 3) {
     await arjun.goto(WEB + '/coordinator/post-need');
     await arjun.waitForURL(u => u.pathname === '/');
     check('U17 volunteer blocked from Post a Need', true);
+  });
+
+  // R1 — Resource Connect: the school asks for tablets, connects with the college's offer, hands over
+  await attempt('R1  resource connect', async () => {
+    await lakshmi.goto(WEB + '/coordinator/resources');
+    await lakshmi.getByPlaceholder('tablets').fill('tablets');
+    await lakshmi.getByPlaceholder('10', { exact: true }).fill('10');
+    await lakshmi.getByRole('button', { name: 'Find matches' }).click();
+    await lakshmi.getByText('Sri Ramana Arts College').first().waitFor();
+    await lakshmi.getByRole('button', { name: 'Connect' }).first().click();
+    await lakshmi.getByText(/Connected with/).first().waitFor();
+    await lakshmi.getByRole('button', { name: 'Mark handed over' }).first().click();
+    await lakshmi.getByText(/Handed over on/).first().waitFor();
+    await fits(lakshmi);
+    check('R1  resource connect', true);
   });
 
   // a volunteer typing /coordinator is sent home

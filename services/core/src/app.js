@@ -19,6 +19,7 @@ function createApp() {
   app.use('/api/circles', circles);
   app.use('/api/coordinator', coordinator);
   app.use('/api/demo', demo);
+  app.use('/api/resources', require('./routes/resources'));
 
   app.use((req, res) => res.status(404).json({ error: { message: 'Not found' } }));
 
