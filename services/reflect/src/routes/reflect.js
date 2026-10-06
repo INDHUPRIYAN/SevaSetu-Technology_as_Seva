@@ -1,10 +1,12 @@
-// Endpoints 21–24: the private Seva Diary. Every entries query is filtered by the caller's own id.
+// Endpoints 21–24: the private Seva Diary and the sealed Sankalpa. Every query is filtered by the caller's own id.
 const router = require('express').Router();
 const Question = require('../models/Question');
 const Entry = require('../models/Entry');
+const Sankalpa = require('../models/Sankalpa');
+const Received = require('../models/Received');
 const { me } = require('../user');
 
-const QUESTION_COUNT = 4;                        // the four diary questions rotate week by week
+const QUESTION_COUNT = 5;                        // the five diary questions rotate week by week
 const MAX_TEXT = 4000;
 
 const bad = (res, message) => res.status(400).json({ error: { message } });
@@ -94,6 +96,74 @@ router.get('/then-and-now', async (req, res) => {
   const picked = entries.length >= 2 ? [entries[0], entries[entries.length - 1]] : entries.slice(0, 1);
   const [first = null, latest = null] = await withQuestions(picked);
   res.json({ data: { first, latest } });
+});
+
+// 24f. My Seva so far, across every commitment: the first entry ever written beside the latest, and every
+// sealed Sankalpa in the order they were sealed. Only the caller's own; no counts, no totals.
+router.get('/my-seva', async (req, res) => {
+  const userId = me(req).id;
+  const [first] = await Entry.find({ userId }).sort({ createdAt: 1, week: 1 }).limit(1).lean();
+  const [latest] = await Entry.find({ userId }).sort({ updatedAt: -1, week: -1 }).limit(1).lean();
+  const picked = first && latest && String(first._id) !== String(latest._id) ? [first, latest] : first ? [first] : [];
+  const [firstOut = null, latestOut = null] = await withQuestions(picked);
+  const sankalpas = await Sankalpa.find({ userId }).sort({ sealedAt: 1 }).lean();
+  const received = await Received.find({ userId }).sort({ writtenAt: 1 }).lean();
+  res.json({
+    data: {
+      first: firstOut,
+      latest: latestOut,
+      sankalpas: sankalpas.map(x => ({ commitmentId: x.commitmentId, text: x.text, sealedAt: x.sealedAt })),
+      received: received.map(x => ({ commitmentId: x.commitmentId, text: x.text, writtenAt: x.writtenAt })),
+    },
+  });
+});
+
+// 24b. Seal the Sankalpa: one private line, written once when she commits. A second write is refused.
+router.post('/sankalpa', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.body?.commitmentId);
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!commitmentId) return bad(res, 'commitmentId is needed');
+  if (!text) return bad(res, 'Please write one line before sealing it');
+  if (text.length > 300) return bad(res, 'Please keep it to one line (under 300 characters)');
+  try {
+    const s = await Sankalpa.create({ userId: me(req).id, commitmentId, text });
+    res.status(201).json({ data: { text: s.text, sealedAt: s.sealedAt } });
+  } catch (e) {
+    if (e.code !== 11000) throw e;
+    res.status(409).json({ error: { message: 'Your Sankalpa is already sealed' } });
+  }
+});
+
+// 24c. Her own Sankalpa for one commitment, or null. Nobody else's, ever.
+router.get('/sankalpa', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.query.commitmentId);
+  if (!commitmentId) return bad(res, 'commitmentId is needed');
+  const s = await Sankalpa.findOne({ userId: me(req).id, commitmentId }).lean();
+  res.json({ data: s ? { text: s.text, sealedAt: s.sealedAt } : null });
+});
+
+// 24d. "What did they give you?": written once at finish, before the handover. Private, like the Sankalpa.
+router.post('/received', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.body?.commitmentId);
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!commitmentId) return bad(res, 'commitmentId is needed');
+  if (!text) return bad(res, 'Please write a few words first');
+  if (text.length > 1000) return bad(res, 'Please keep it under 1000 characters');
+  try {
+    const r = await Received.create({ userId: me(req).id, commitmentId, text });
+    res.status(201).json({ data: { text: r.text, writtenAt: r.writtenAt } });
+  } catch (e) {
+    if (e.code !== 11000) throw e;
+    res.status(409).json({ error: { message: 'You have already written this' } });
+  }
+});
+
+// 24e. Her own answer for one commitment, or null
+router.get('/received', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.query.commitmentId);
+  if (!commitmentId) return bad(res, 'commitmentId is needed');
+  const r = await Received.findOne({ userId: me(req).id, commitmentId }).lean();
+  res.json({ data: r ? { text: r.text, writtenAt: r.writtenAt } : null });
 });
 
 module.exports = router;

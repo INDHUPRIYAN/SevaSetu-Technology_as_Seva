@@ -145,8 +145,7 @@ export default function VoiceInput({ value, onChange, lang = 'ta', id, label, hi
               disabled={busy}
               aria-pressed={recording}
               aria-label={recording ? 'Stop and add the words' : 'Speak instead of typing'}
-              className={`pointer-events-auto relative grid size-12 shrink-0 place-items-center rounded-full text-white
-                shadow-pill transition-colors disabled:cursor-wait disabled:opacity-60
+              className={`pointer-events-auto relative grid size-12 shrink-0 place-items-center rounded-full text-white transition-colors disabled:cursor-wait disabled:opacity-60
                 ${recording ? 'bg-saffron-deep' : 'bg-saffron-strong hover:bg-saffron-deep'}`}
             >
               {recording && <span className="absolute inset-0 animate-ping rounded-full bg-saffron/40" aria-hidden="true" />}

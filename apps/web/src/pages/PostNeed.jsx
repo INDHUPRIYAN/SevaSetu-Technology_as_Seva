@@ -1,16 +1,20 @@
 // /coordinator/post-need — the Seva Bridge (endpoint 28, then A's endpoint 6).
-// Step 1: language + say or type the need → Make draft. Step 2: edit every field, with yellow privacy
-// warnings. Step 3: tick "I read this back…" → Publish. The AI never publishes; a person does.
+// Step 1: language + say or type the need → Make draft. Step 2: edit every field, with the Dignity Check
+// over the card and the original words. Step 3: tick "I read this back…" → Publish. The AI never
+// publishes; a person does. The original words are stored with the need, in their language.
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { toast } from '../lib/toast';
 import { useAuth } from '../lib/auth';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
 import VoiceInput from '../components/seva/VoiceInput';
 import WhyLink from '../components/seva/WhyLink';
-import { Warning } from '../components/seva/icons';
+import DignityCheck from '../components/seva/DignityCheck';
+import LanguageToggle from '../components/seva/LanguageToggle';
+import { useT } from '../i18n';
 import {
   DRAFT_LANGUAGES, WEEKDAYS, draftToForm, formToNeed, splitTags, validateForm,
 } from '../components/seva/needDraft';
@@ -30,7 +34,8 @@ function Field({ id, label, error, hint, children }) {
 }
 
 function Steps({ step }) {
-  const steps = ['Say or type', 'Check the card', 'Read back & publish'];
+  const t = useT();
+  const steps = ['Say or type', 'Check the card', 'Read back & publish'].map(k => t(k));
   return (
     <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Steps">
       {steps.map((label, i) => {
@@ -50,6 +55,7 @@ function Steps({ step }) {
 }
 
 export default function PostNeed() {
+  const t = useT();
   const user = useAuth(s => s.user);
   const navigate = useNavigate();
 
@@ -57,7 +63,8 @@ export default function PostNeed() {
   const [words, setWords] = useState('');
   const [drafting, setDrafting] = useState(false);
   const [draftError, setDraftError] = useState('');
-  const [result, setResult] = useState(null);          // { privacyFlags, source }
+  const [result, setResult] = useState(null);          // { source }
+  const [original, setOriginal] = useState(null);      // { text, language }: the words as said, kept with the need
   const [form, setForm] = useState(null);
   const [touched, setTouched] = useState(false);
   const [readBack, setReadBack] = useState(false);          // the community heard it and confirmed
@@ -75,14 +82,15 @@ export default function PostNeed() {
     setDraftError('');
     try {
       const data = await api.post('/api/bridge/draft-need', { text: words, language });
-      setResult({ privacyFlags: data.privacyFlags || [], source: data.source });
+      setResult({ source: data.source });
+      setOriginal({ text: words.trim(), language });
       setForm(draftToForm(data.draft));
       setTouched(false);
       setReadBack(false);
       setConsent(false);
       setPublishError('');
     } catch (err) {
-      setDraftError(err?.message || 'We could not make a draft just now. Please try again.');
+      setDraftError(err?.message || t('We could not make a draft just now. Please try again.'));
     } finally {
       setDrafting(false);
     }
@@ -111,10 +119,11 @@ export default function PostNeed() {
     setPublishing(true);
     setPublishError('');
     try {
-      await api.post('/api/needs', formToNeed(form));
+      await api.post('/api/needs', formToNeed(form, undefined, original));
+      toast(t('Published'));
       navigate('/coordinator');
     } catch (err) {
-      setPublishError(err?.message || 'The need could not be published. Please try again.');
+      setPublishError(err?.message || t('The need could not be published. Please try again.'));
       setPublishing(false);
     }
   }
@@ -122,6 +131,7 @@ export default function PostNeed() {
   function startAgain() {
     setForm(null);
     setResult(null);
+    setOriginal(null);
     setReadBack(false);
     setConsent(false);
   }
@@ -132,18 +142,19 @@ export default function PostNeed() {
   return (
     <div className="@container mx-auto w-full max-w-4xl pt-6 pb-10 lg:mx-0 lg:pt-0">
       <PageHeader
-        back={{ to: '/coordinator', label: 'Dashboard' }}
-        eyebrow="Seva Bridge"
-        title="Post a Need"
-        subtitle="Say it the way the community said it. We will turn it into a card for you to check."
+        back={{ to: '/coordinator', label: t('Dashboard') }}
+        eyebrow={t('Seva Bridge')}
+        title={t('Post a Need')}
+        subtitle={t('Say it the way the community said it. We will turn it into a card for you to check.')}
       />
+      <LanguageToggle className="mt-3" />
       <Steps step={step} />
 
       {!form && (
-        <Card className="mt-5 p-5 @2xl:p-7">
+        <Card className="mt-5 p-4 @2xl:p-6">
           <form onSubmit={makeDraft}>
             <fieldset>
-              <legend className="mb-2 text-sm font-semibold text-ink">Language</legend>
+              <legend className="mb-2 text-sm font-semibold text-ink">{t('Language')}</legend>
               <div className="flex flex-wrap gap-2">
                 {DRAFT_LANGUAGES.map(l => (
                   <label
@@ -171,8 +182,8 @@ export default function PostNeed() {
             <div className="mt-5">
               <VoiceInput
                 id="need-words"
-                label="What does the community need?"
-                hint="Describe the group, the day, the time and the place. Please do not name anyone."
+                label={t('What does the community need?')}
+                hint={t('Describe the group, the day, the time and the place. Please do not name anyone.')}
                 value={words}
                 onChange={setWords}
                 lang={language}
@@ -188,7 +199,7 @@ export default function PostNeed() {
             <div className="mt-4 flex justify-end">
               <Button type="submit" disabled={!words.trim() || drafting} className="w-full @md:w-auto">
                 {drafting && <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />}
-                {drafting ? 'Making the draft…' : 'Make draft'}
+                {t(drafting ? 'Making the draft…' : 'Make draft')}
               </Button>
             </div>
           </form>
@@ -197,48 +208,66 @@ export default function PostNeed() {
 
       {form && (
         <form onSubmit={publish} noValidate className="mt-5 flex flex-col gap-5">
-          {result.privacyFlags.length > 0 && (
-            <div role="alert" className="rounded-3xl border border-warn-line bg-warn p-5 text-warn-ink" data-testid="privacy-warnings">
-              <p className="flex items-center gap-2 text-base font-semibold">
-                <Warning className="size-5 shrink-0" /> Please check before publishing
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-9 text-sm">
-                {result.privacyFlags.map(flag => <li key={flag}>{flag}</li>)}
-              </ul>
-              <p className="mt-2 pl-7 text-sm">Describe the group, never one person. Remove names, money, caste, religion and health details.</p>
-            </div>
-          )}
+          <DignityCheck
+            fields={[
+              { key: 'original', label: t('In the community’s words (shown on the card)'), value: original?.text || '' },
+              { key: 'title', label: t('Title'), value: form.title },
+              { key: 'want', label: t('What we want'), value: form.want },
+              { key: 'serveUsWell', label: t('How to serve us well'), value: form.serveUsWell },
+              { key: 'youWillLearn', label: t('What you will learn'), value: form.youWillLearn },
+              { key: 'place', label: t('Place'), value: form.place },
+            ]}
+            onUse={(key, rewrite) => (key === 'original'
+              ? setOriginal(o => ({ ...o, text: rewrite }))
+              : setForm(f => ({ ...f, [key]: rewrite })))}
+          />
 
+          {result.source === 'ai' && (
+            <p className="text-xs font-semibold tracking-wide text-ember uppercase">{t('Suggested draft — please check every field')}</p>
+          )}
           {result.source === 'fallback' && (
             <p className="rounded-2xl bg-peach-soft px-4 py-3 text-sm text-ink-soft">
-              The drafting helper is resting, so this is a sample card. Please change every field to match what the
-              community said.
+              {t('The drafting helper is resting, so this is a sample card. Please change every field to match what the community said.')}
             </p>
           )}
 
-          <Card className="p-5 @2xl:p-7">
-            <h2 className="font-serif text-xl font-semibold text-ink">Check the card</h2>
-            <p className="mt-1 text-sm text-ink-soft">Every field can be changed.</p>
+          <Card className="p-4 @2xl:p-6">
+            <h2 className="font-serif text-xl font-semibold text-ink">{t('Check the card')}</h2>
+            <p className="mt-1 text-sm text-ink-soft">{t('Every field can be changed.')}</p>
+            {original?.text && (
+              <div className="mt-4">
+                <Field id="need-original" label={t('In the community’s words')} hint={t('Shown on the card as it was said. You can change it.')}>
+                  <textarea
+                    id="need-original"
+                    rows={3}
+                    lang={original.language}
+                    value={original.text}
+                    onChange={e => setOriginal(o => ({ ...o, text: e.target.value }))}
+                    className={`${INPUT} border-line`}
+                  />
+                </Field>
+              </div>
+            )}
 
             <div className="mt-5 grid gap-4 @2xl:grid-cols-2">
               <div className="@2xl:col-span-2">
-                <Field id="need-title" label="Title" error={shownErrors.title}><input type="text" maxLength={140} {...inputProps('title')} /></Field>
+                <Field id="need-title" label={t('Title')} error={shownErrors.title}><input type="text" maxLength={140} {...inputProps('title')} /></Field>
               </div>
               <div className="@2xl:col-span-2">
-                <Field id="need-want" label="What we want" error={shownErrors.want}><textarea rows={3} {...inputProps('want')} /></Field>
+                <Field id="need-want" label={t('What we want')} error={shownErrors.want}><textarea rows={3} {...inputProps('want')} /></Field>
               </div>
-              <Field id="need-serveUsWell" label="How to serve us well" error={shownErrors.serveUsWell}>
+              <Field id="need-serveUsWell" label={t('How to serve us well')} error={shownErrors.serveUsWell}>
                 <textarea rows={3} {...inputProps('serveUsWell')} />
               </Field>
-              <Field id="need-youWillLearn" label="What you will learn" error={shownErrors.youWillLearn}>
+              <Field id="need-youWillLearn" label={t('What you will learn')} error={shownErrors.youWillLearn}>
                 <textarea rows={3} {...inputProps('youWillLearn')} />
               </Field>
-              <Field id="need-place" label="Place" error={shownErrors.place}><input type="text" {...inputProps('place')} /></Field>
-              <Field id="need-groupSize" label="Group size" error={shownErrors.groupSize}>
+              <Field id="need-place" label={t('Place')} error={shownErrors.place}><input type="text" {...inputProps('place')} /></Field>
+              <Field id="need-groupSize" label={t('Group size')} error={shownErrors.groupSize}>
                 <input type="number" inputMode="numeric" min={1} max={500} {...inputProps('groupSize')} />
               </Field>
               <div className="@2xl:col-span-2">
-                <Field id="need-interests" label="Interests" error={shownErrors.interests} hint="Separate with commas, e.g. teaching, reading">
+                <Field id="need-interests" label={t('Interests')} error={shownErrors.interests} hint={t('Separate with commas, e.g. teaching, reading')}>
                   <input type="text" {...inputProps('interests')} />
                 </Field>
                 {tags.length > 0 && (
@@ -250,27 +279,27 @@ export default function PostNeed() {
             </div>
 
             <fieldset className="mt-5">
-              <legend className="mb-2 text-sm font-semibold text-ink">Rhythm</legend>
+              <legend className="mb-2 text-sm font-semibold text-ink">{t('Rhythm')}</legend>
               <div className="grid gap-4 @md:grid-cols-2 @2xl:grid-cols-4">
-                <Field id="need-day" label="Day" error={shownErrors.day}>
+                <Field id="need-day" label={t('Day')} error={shownErrors.day}>
                   <select {...inputProps('day')}>
-                    <option value="">Pick a day</option>
+                    <option value="">{t('Pick a day')}</option>
                     {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </Field>
-                <Field id="need-start" label="From" error={shownErrors.start}><input type="time" {...inputProps('start')} /></Field>
-                <Field id="need-end" label="To" error={shownErrors.end}><input type="time" {...inputProps('end')} /></Field>
-                <Field id="need-weeks" label="Weeks" error={shownErrors.weeks}>
+                <Field id="need-start" label={t('From')} error={shownErrors.start}><input type="time" {...inputProps('start')} /></Field>
+                <Field id="need-end" label={t('To')} error={shownErrors.end}><input type="time" {...inputProps('end')} /></Field>
+                <Field id="need-weeks" label={t('Weeks')} error={shownErrors.weeks}>
                   <input type="number" inputMode="numeric" min={1} max={52} {...inputProps('weeks')} />
                 </Field>
               </div>
             </fieldset>
           </Card>
 
-          <Card className="p-5 @2xl:p-7">
-            <h2 className="font-serif text-xl font-semibold text-ink">Please read this back to the community.</h2>
+          <Card className="p-4 @2xl:p-6">
+            <h2 className="font-serif text-xl font-semibold text-ink">{t('Please read this back to the community.')}</h2>
             <p className="mt-1 text-sm text-ink-soft">
-              Read the card aloud, in their language, before it goes out. Change anything they did not say.
+              {t('Read the card aloud, in their language, before it goes out. Change anything they did not say.')}
               <WhyLink rule="community-confirmation" />
             </p>
             <label className="mt-4 flex cursor-pointer items-start gap-3 text-base text-ink">
@@ -280,7 +309,7 @@ export default function PostNeed() {
                 onChange={e => setReadBack(e.target.checked)}
                 className="mt-0.5 size-5 shrink-0 accent-saffron-strong"
               />
-              <span>I read this card back to the community, and <strong className="font-semibold">they confirmed it</strong>.</span>
+              <span>{t('I read this card back to the community, and')} <strong className="font-semibold">{t('they confirmed it')}</strong>.</span>
             </label>
             <label className="mt-3 flex cursor-pointer items-start gap-3 text-base text-ink">
               <input
@@ -289,17 +318,17 @@ export default function PostNeed() {
                 onChange={e => setConsent(e.target.checked)}
                 className="mt-0.5 size-5 shrink-0 accent-saffron-strong"
               />
-              <span>As the coordinator, <strong className="font-semibold">I consent to publishing this need</strong>.</span>
+              <span>{t('As the coordinator,')} <strong className="font-semibold">{t('I consent to publishing this need')}</strong>.</span>
             </label>
 
             {touched && Object.keys(errors).length > 0 && (
-              <p className="mt-3 text-sm font-medium text-ember" role="alert">Please fill the fields marked above.</p>
+              <p className="mt-3 text-sm font-medium text-ember" role="alert">{t('Please fill the fields marked above.')}</p>
             )}
             {publishError && <p className="mt-3 text-sm font-medium text-ember" role="alert">{publishError}</p>}
 
             <div className="mt-5 flex flex-col-reverse gap-3 @md:flex-row @md:justify-between">
-              <Button variant="secondary" onClick={startAgain} disabled={publishing}>Start again</Button>
-              <Button type="submit" disabled={!readBack || !consent || publishing}>{publishing ? 'Publishing…' : 'Publish need'}</Button>
+              <Button variant="secondary" onClick={startAgain} disabled={publishing}>{t('Start again')}</Button>
+              <Button type="submit" disabled={!readBack || !consent || publishing}>{t(publishing ? 'Publishing…' : 'Publish need')}</Button>
             </div>
           </Card>
         </form>

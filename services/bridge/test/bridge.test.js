@@ -124,8 +124,9 @@ describe('28. POST /api/bridge/draft-need', () => {
     assert.doesNotMatch(text, /Ravi|income|₹|\brs\b|poor|needy|beneficiar/i);
   });
 
-  it('B8: with no GROQ_API_KEY the real client fails fast and the fallback comes back within 1 second', async () => {
-    const saved = process.env.GROQ_API_KEY;
+  it('B8: with no LLM_API_KEY the real client fails fast and the fallback comes back within 1 second', async () => {
+    const saved = { LLM_API_KEY: process.env.LLM_API_KEY, GROQ_API_KEY: process.env.GROQ_API_KEY };
+    delete process.env.LLM_API_KEY;
     delete process.env.GROQ_API_KEY;
     try {
       const started = Date.now();
@@ -135,7 +136,7 @@ describe('28. POST /api/bridge/draft-need', () => {
       assert.deepEqual(res.body.data.draft, FALLBACK);
       assert.ok(Date.now() - started < 1000, `${Date.now() - started} ms`);
     } finally {
-      if (saved !== undefined) process.env.GROQ_API_KEY = saved;
+      for (const [k, v] of Object.entries(saved)) if (v !== undefined) process.env[k] = v;
     }
   });
 

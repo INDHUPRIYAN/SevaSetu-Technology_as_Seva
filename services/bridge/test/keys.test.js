@@ -20,7 +20,7 @@ describe('B10: keys stay in the bridge', () => {
   it('the scanner finds a planted key and ignores the .env file', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-'));
     fs.writeFileSync(path.join(dir, 'bundle.js'), 'const k = "gsk_TESTKEY1234567890";');
-    const { leaks } = scan({ env: { GROQ_API_KEY: 'gsk_TESTKEY1234567890' }, roots: [dir] });
+    const { leaks } = scan({ env: { LLM_API_KEY: 'gsk_TESTKEY1234567890' }, roots: [dir] });
     assert.equal(leaks.length, 1);
     fs.rmSync(dir, { recursive: true, force: true });
   });
@@ -33,7 +33,7 @@ describe('B10: keys stay in the bridge', () => {
   it('no frontend file calls Groq or Bhashini or mentions their keys', () => {
     for (const file of sourceFiles(WEB_SRC)) {
       const text = fs.readFileSync(file, 'utf8');
-      assert.doesNotMatch(text, /groq\.com|bhashini\.gov|ulcacontrib|dhruva|GROQ_API_KEY|BHASHINI_|ulcaApiKey/i, file);
+      assert.doesNotMatch(text, /groq\.com|bhashini\.gov|ulcacontrib|dhruva|LLM_API_KEY|GROQ_API_KEY|BHASHINI_|ulcaApiKey/i, file);
     }
   });
 });

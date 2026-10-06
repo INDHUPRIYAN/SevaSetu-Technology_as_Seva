@@ -4,11 +4,43 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 const { createApp } = require('../src/app');
 const { dayOfYear } = require('../src/dayOfYear');
-const { startDb, seedReflect, VOL, COORD } = require('./helpers');
+const { startDb, seedReflect, verifyAllWisdom, VOL, COORD } = require('./helpers');
+const Wisdom = require('../src/models/Wisdom');
 const { WISDOM } = require('../../../seed/reflect-data');
 
 let stopDb;
-before(async () => { stopDb = await startDb(); await seedReflect(); });
+before(async () => { stopDb = await startDb(); });
+
+describe('only verified quotes are ever shown', () => {
+  before(async () => { await seedReflect(); });          // as seeded: nothing verified yet
+
+  it('today has nothing to show, and the list is empty', async () => {
+    const today = await request(createApp()).get('/api/wisdom/today').set(VOL);
+    assert.equal(today.status, 200);
+    assert.equal(today.body.data, null);
+    assert.deepEqual((await request(createApp()).get('/api/wisdom').set(VOL)).body.data, []);
+  });
+
+  it('whys and moments keep our own words but leave the unverified quote out', async () => {
+    const why = (await request(createApp()).get('/api/wisdom/why/listen-first').set(VOL)).body.data;
+    assert.equal(why.teaching, null);
+    assert.ok(why.interpretation && why.decision);
+    const moment = (await request(createApp()).get('/api/wisdom/moment/commit').set(VOL)).body.data;
+    assert.equal(moment.teaching, null);
+    assert.ok(moment.interpretation && moment.practice);
+  });
+
+  it('one verified quote shows, the rest stay hidden', async () => {
+    await Wisdom.updateOne({ text: WISDOM[0].text }, { verified: true });
+    const list = (await request(createApp()).get('/api/wisdom').set(VOL)).body.data;
+    assert.deepEqual(list.map(w => w.text), [WISDOM[0].text]);
+    assert.equal((await request(createApp()).get('/api/wisdom/today').set(VOL)).body.data.text, WISDOM[0].text);
+  });
+});
+
+describe('with every quote verified', () => {
+  before(async () => { await seedReflect(); await verifyAllWisdom(); });
+
 after(async () => { await stopDb(); });
 
 const at = iso => createApp({ now: () => new Date(iso) });
@@ -132,4 +164,5 @@ describe('27. GET /api/wisdom/why/:ruleKey', () => {
     assert.equal(res.status, 404);
     assert.ok(res.body.error.message);
   });
+});
 });

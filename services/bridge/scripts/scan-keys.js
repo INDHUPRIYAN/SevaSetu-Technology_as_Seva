@@ -1,4 +1,4 @@
-// Test B10: the Groq and Bhashini keys must never be in git or in the built frontend.
+// Test B10: the LLM (Groq) and Bhashini keys must never be in git or in the built frontend.
 // Run: npm run scan-keys   (from the repo root or services/bridge)
 // Reads the keys from services/bridge/.env (or the environment) and searches for their first 8 characters.
 const fs = require('fs');
@@ -8,7 +8,7 @@ const BRIDGE = path.resolve(__dirname, '..');
 const ROOTS = [path.resolve(BRIDGE, '../..')];           // the whole repo, built frontends included
 const SKIP_DIRS = new Set(['node_modules', '.git']);
 const SKIP_FILES = new Set([path.join(BRIDGE, '.env')]);  // the one place a key may live (git ignores it)
-const KEY_NAMES = ['GROQ_API_KEY', 'BHASHINI_USER_ID', 'BHASHINI_ULCA_API_KEY'];
+const KEY_NAMES = ['LLM_API_KEY', 'GROQ_API_KEY', 'BHASHINI_USER_ID', 'BHASHINI_ULCA_API_KEY'];
 
 function readEnvFile(file) {
   if (!fs.existsSync(file)) return {};

@@ -1,8 +1,11 @@
 // The data seed-reflect.js writes into seva_reflect. Change words here, not in the script.
 // All names anywhere in the seed are invented. Nothing here names a child or a parent.
 
-// Teachings for the Wisdom page and "Seva Wisdom for Today" — verbatim, with sources (see the file).
-const WISDOM = require('./wisdom-quotes');
+// Teachings for the Wisdom page and "Seva Wisdom for Today": seed/wisdom.json. Every text is copied
+// verbatim from The Complete Works of Swami Vivekananda (`url` is an online copy). `verified` stays false
+// until a person has found the quote in a printed volume and added the `page`; the app shows only
+// verified quotes, here and in the whys and moments below. `url` is not stored in the database.
+const WISDOM = require('./wisdom.json');
 
 // Reuse a verified quote by its opening words, so a quote is written down in one place only.
 function quote(start) {
@@ -11,13 +14,15 @@ function quote(start) {
   return { quote: w.text, source: w.source };
 }
 
-// The four diary questions (plan section 4). Week N uses order ((N - 1) % 4) + 1.
+// The five diary questions (plan section 4). Week N uses order ((N - 1) % 5) + 1.
 // `teaching` is a short line of our own under the question, not a quotation.
 const QUESTIONS = [
   { order: 1, theme: 'patience', text: 'When did you have to wait today?', teaching: 'Patience and perseverance' },
   { order: 2, theme: 'listening', text: 'What did someone tell you that surprised you?', teaching: 'Feel first, organize afterwards' },
   { order: 3, theme: 'effort', text: 'What was in your hands today, and what was not?', teaching: 'Work fully, leave the results' },
   { order: 4, theme: 'received', text: 'What did you receive today?', teaching: 'The giver receives more than the receiver' },
+  // the humility check: private, never scored, like every other entry
+  { order: 5, theme: 'pride', text: 'Was there a moment this week I felt I knew better than them?', teaching: 'Help offered from above is not seva' },
 ];
 
 // The "Why?" behind each rule: verified teaching (or none) → our interpretation → the product decision.
@@ -115,9 +120,36 @@ const MOMENTS = [
     practice: 'Continue only if you can keep the rhythm. If you pause or finish, leave a handover so the '
       + 'next person can begin where you stopped.',
   },
+
+  // Non-attachment moments: plain words of our own, no quotation. Each is a calm full screen with one
+  // next action. No apology, no retry pressure.
+  {
+    key: 'declined',
+    title: 'Not this time',
+    interpretation: 'Listening was the seva. The answer was theirs to give, and they gave it. '
+      + 'Nothing you did there is undone by it.',
+    practice: 'Carry what you heard with you. Another community may be waiting for exactly that.',
+  },
+  {
+    key: 'closed',
+    title: 'This seva is complete',
+    interpretation: 'The need has ended: a school has closed, an organisation has moved on, a season is over. '
+      + 'Work done with full attention is complete when it ends, whether or not it ended on your terms.',
+    practice: 'Keep the rhythm you learned. When you are ready, find the next place that needs it.',
+  },
+  {
+    key: 'finished',
+    title: 'Before you go',
+    interpretation: 'The one you served gave you the chance to serve. That gift came first, '
+      + 'before anything you brought.',
+    practice: 'Write down what they gave you. Only then, write what you leave for the next volunteer.',
+  },
 ];
 
 // Seeded volunteer, week 1 only. Week 2 is written live in the demo.
 const SEEDED_ENTRY = { week: 1, text: 'I kept correcting them.', hardDay: false };
 
-module.exports = { QUESTIONS, WHYS, MOMENTS, WISDOM, SEEDED_ENTRY };
+// The seeded volunteer's sealed Sankalpa, written when he committed. Shown again only to him.
+const SEEDED_SANKALPA = 'To wait for someone else to find their words.';
+
+module.exports = { QUESTIONS, WHYS, MOMENTS, WISDOM, SEEDED_ENTRY, SEEDED_SANKALPA };

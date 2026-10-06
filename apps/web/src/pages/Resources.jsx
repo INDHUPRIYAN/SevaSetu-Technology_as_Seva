@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRightLeft, CalendarDays, Check, MapPin, Package } from 'lucide-react';
 import { api } from '../lib/api';
+import { toast } from '../lib/toast';
 import { useLoad } from '../lib/useLoad';
 import { longDate, shortDate } from '../lib/format';
 import { EmptyState, ErrorNote, IconBadge, Loading, PageHeader, SectionTitle, StatusPill, TextArea } from '../components/ui/Bits';
@@ -8,9 +9,29 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 
 const FIELD = 'h-11 w-full rounded-2xl bg-cream-50 px-4 text-[15px] ring-1 ring-cream-300 focus:outline-none focus:ring-2 focus:ring-saffron-400';
-const EMPTY = { kind: 'request', type: '', quantity: '', availableFrom: '', note: '' };
+const EMPTY = { kind: 'request', category: 'equipment', mode: 'lend', type: '', quantity: '', availableFrom: '', note: '' };
+const CATEGORIES = ['equipment', 'space', 'skill', 'transport', 'materials'];
+const MODES = ['lend', 'share', 'give'];
+const IN_USE = { yes: 'In use — thank you for telling us.', 'not-yet': 'Not in use yet.', no: 'Not in use.' };
 
-// /coordinator/resources — Resource Connect: offer or ask for things; SevaSetu suggests matches
+function Choice({ legend, options, value, onChange }) {
+  return (
+    <fieldset className="mt-4">
+      <legend className="mb-2 text-sm font-medium text-ink-800">{legend}</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map(o => (
+          <button key={o} type="button" aria-pressed={value === o} onClick={() => onChange(o)}
+            className={`h-9 rounded-full px-3.5 text-sm font-medium capitalize ${value === o ? 'bg-ink-800 text-cream-50' : 'bg-cream-50 text-ink-700 ring-1 ring-cream-300'}`}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+// /coordinator/resources — Resource Connect, organisation to organisation: "We have" and "We lack"
+// (equipment, space, skill, transport, materials; lend, share or give; never money); SevaSetu suggests matches
 export default function Resources() {
   const mine = useLoad(() => api.get('/api/resources/mine'));
   const [form, setForm] = useState(EMPTY);
@@ -22,6 +43,7 @@ export default function Resources() {
     setError(null);
     try {
       await fn();
+      toast();
       await mine.reload({ quiet: true });
     } catch (e) {
       setError(e);
@@ -35,22 +57,24 @@ export default function Resources() {
 
   return (
     <div className="lg:max-w-4xl">
-      <PageHeader title="Resource Connect" subtitle="Offer or ask for things, never people." />
+      <PageHeader title="Resource Connect" subtitle="Organisation to organisation. Things, space and skills, never money." />
 
       <div className="space-y-6 xl:grid xl:grid-cols-[360px_1fr] xl:items-start xl:gap-8 xl:space-y-0">
-        <Card className="p-5 xl:sticky xl:top-8">
+        <Card className="p-4 xl:sticky xl:top-8">
           <form onSubmit={e => { e.preventDefault(); if (ready) act(async () => { await api.post('/api/resources', { ...form, quantity: Number(form.quantity) }); setForm(EMPTY); }); }}>
             <fieldset>
               <legend className="mb-2 font-semibold text-ink-900">Your organisation…</legend>
               <div className="grid grid-cols-2 gap-2">
-                {[['request', 'needs'], ['offer', 'can offer']].map(([k, label]) => (
+                {[['request', 'We lack'], ['offer', 'We have']].map(([k, label]) => (
                   <button key={k} type="button" aria-pressed={form.kind === k} onClick={() => setForm(f => ({ ...f, kind: k }))}
-                    className={`h-11 rounded-full text-sm font-semibold ${form.kind === k ? 'bg-saffron-500 text-white shadow-lift' : 'bg-cream-50 text-ink-700 ring-1 ring-cream-300'}`}>
+                    className={`h-11 rounded-full text-sm font-semibold ${form.kind === k ? 'bg-saffron-500 text-white' : 'bg-cream-50 text-ink-700 ring-1 ring-cream-300'}`}>
                     {label}
                   </button>
                 ))}
               </div>
             </fieldset>
+            <Choice legend="What kind" options={CATEGORIES} value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} />
+            <Choice legend={form.kind === 'request' ? 'Borrowed, shared or given' : 'To lend, share or give'} options={MODES} value={form.mode} onChange={v => setForm(f => ({ ...f, mode: v }))} />
             <div className="mt-4 grid grid-cols-[1fr_96px] gap-3">
               <label className="block text-sm font-medium text-ink-800">What
                 <input className={`${FIELD} mt-1`} value={form.type} onChange={set('type')} placeholder="tablets" maxLength={60} />
@@ -92,7 +116,9 @@ function ResourceCard({ r, busy, act }) {
       <div className="flex items-start gap-3">
         <IconBadge icon={Package} size="sm" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">{r.kind === 'request' ? 'You need' : 'You offer'}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">
+            {r.kind === 'request' ? 'We lack' : 'We have'} · {r.category} · to {r.mode}
+          </p>
           <p className="font-serif text-lg font-semibold capitalize text-ink-900">{r.quantity} {r.type}</p>
           {r.availableFrom && <p className="text-sm text-ink-500">{r.kind === 'request' ? 'Needed by' : 'Ready from'} {longDate(r.availableFrom)}</p>}
         </div>
@@ -105,15 +131,16 @@ function ResourceCard({ r, busy, act }) {
           {r.candidates.length ? (
             <ul className="mt-2 space-y-2">
               {r.candidates.map(c => (
-                <li key={c._id} className="rounded-2xl bg-cream-100 p-3.5">
+                <li key={c._id} className="rounded-2xl bg-cream-100 p-4">
                   <p className="font-medium text-ink-900">{c.org.name}</p>
                   <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-ink-700">
                     <span className="capitalize">{c.kind === 'offer' ? 'Offers' : 'Needs'} {c.quantity} {c.type}</span>
-                    <span className="flex items-center gap-1"><MapPin size={13} />{c.org.city}</span>
+                    <span className="flex items-center gap-1"><MapPin size={13} />{c.distanceKm != null ? `${c.distanceKm} km away` : c.org.city}</span>
+                    <span>to {c.mode}</span>
                     {c.availableFrom && <span className="flex items-center gap-1"><CalendarDays size={13} />{shortDate(c.availableFrom)}</span>}
                   </p>
                   {c.note && <p className="mt-1 text-sm italic text-ink-500">“{c.note}”</p>}
-                  <Button size="sm" className="mt-2.5" disabled={busy}
+                  <Button size="sm" variant="secondary" className="mt-2" disabled={busy}
                     onClick={() => act(() => api.post(`/api/resources/${r._id}/connect`, { withId: c._id }))}>
                     <ArrowRightLeft size={15} /> Connect
                   </Button>
@@ -137,7 +164,24 @@ function ResourceCard({ r, busy, act }) {
         </Button>
       )}
       {r.status === 'handed-over' && (
-        <p className="mt-3 text-sm font-medium text-emerald-700">Handed over on {shortDate(r.handedOverAt)}.</p>
+        <div className="mt-3">
+          <p className="text-sm font-medium text-emerald-700">Handed over on {shortDate(r.handedOverAt)}.</p>
+          {r.inUse ? (
+            <p className="mt-2 text-sm text-ink-700">{IN_USE[r.inUse.answer]}</p>
+          ) : (
+            <div className="mt-3 rounded-2xl bg-cream-100 p-4">
+              <p className="text-sm font-semibold text-ink-900">Is it in use?</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[['yes', 'Yes'], ['not-yet', 'Not yet'], ['no', 'No']].map(([answer, label]) => (
+                  <Button key={answer} size="sm" variant="outline" disabled={busy}
+                    onClick={() => act(() => api.post(`/api/resources/${r._id}/in-use`, { answer }))}>
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </Card>
   );

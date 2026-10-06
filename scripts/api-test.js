@@ -78,12 +78,16 @@ async function login(userId) {
   r = await call('PATCH', `/api/visits/${visitId}/heard`, { token: VOL, body: { text: 'They wanted to talk more than to read.' } });
   check('T12 heard', r.data?.status === 'visited', `status ${r.status} ${JSON.stringify(r.data || r.error)}`);
 
+  // One Visit ramp: the volunteer is never asked first; the community invites or not
   r = await call('PATCH', `/api/visits/${visitId}/decision`, { token: VOL, body: { yes: true } });
-  check('T13 volunteer yes', r.data?.volunteerYes === true && r.data?.status === 'visited', JSON.stringify(r.data || r.error));
+  check('T13 volunteer cannot send an invitation', r.status === 403, `status ${r.status}`);
+
+  r = await call('POST', '/api/commitments', { token: VOL, body: { visitId, weeks: 4, sentence: 'No invitation yet' } });
+  check('T13b commit without a community invitation', r.status === 409, `status ${r.status}`);
 
   const COORD = await login(ids.users.coordinator);
-  r = await call('PATCH', `/api/visits/${visitId}/decision`, { token: COORD, body: { yes: true } });
-  check('T14 coordinator yes', r.data?.status === 'agreed', JSON.stringify(r.data || r.error));
+  r = await call('PATCH', `/api/visits/${visitId}/decision`, { token: COORD, body: { yes: true, text: 'They would like you to come back.' } });
+  check('T14 community invites', r.data?.status === 'invited' && r.data?.invitation?.text, JSON.stringify(r.data || r.error));
 
   r = await call('POST', '/api/commitments', { token: VOL, body: { visitId, weeks: 4, sentence: 'I want to learn to listen.' } });
   const c = r.data || {};
@@ -137,7 +141,7 @@ async function login(userId) {
   r = await call('POST', '/api/needs', { token: VOL, body: { ...newNeed, consent: { readBack: true, coordinatorConsent: true } } });
   check('T26 post need by volunteer', r.status === 403, `status ${r.status}`);
 
-  const wisdom = await call('GET', '/api/wisdom/today', { token: VOL });
+  const wisdom = await call('GET', '/api/wisdom/why/no-ranks', { token: VOL });   // answers even before any quote is verified
   const draft = await call('POST', '/api/bridge/draft-need', { token: COORD, body: { text: 'test', language: 'en' } });
   const reached = x => ![404, 502, 503].includes(x.status);
   check('T27 routing to reflect and bridge', reached(wisdom) && reached(draft), `wisdom ${wisdom.status}, bridge ${draft.status}`);
@@ -173,6 +177,21 @@ async function login(userId) {
   check('X3  pause stores the return date', noDate === 400 && pastDate === 400 && r.data?.status === 'paused' && r.data?.pausedUntil === future,
     `no date ${noDate}, past ${pastDate}, then ${r.data?.status} until ${r.data?.pausedUntil}`);
 
+  // Non-attachment moments exist in plain words, with no quotation at all
+  const moments = await Promise.all(['declined', 'closed', 'finished'].map(k => call('GET', `/api/wisdom/moment/${k}`, { token: VOL })));
+  check('X17 declined / closed / finished moments: plain words, no quote, no "sorry"',
+    moments.every(m => m.data?.interpretation && m.data?.practice && m.data?.teaching === null && !/sorry/i.test(m.data.interpretation + m.data.practice)),
+    moments.map(m => m.status).join(','));
+
+  // "What did they give you?": written once at finish, read back only by the writer
+  const gave = 'Their patience with my Tamil.';
+  const wrote = await call('POST', '/api/reflect/received', { token: VOL, body: { commitmentId: cid, text: gave } });
+  const twiceGave = await call('POST', '/api/reflect/received', { token: VOL, body: { commitmentId: cid, text: 'Again' } });
+  const [mineGave, otherGave] = await Promise.all([VOL, MEMBER].map(token => call('GET', `/api/reflect/received?commitmentId=${cid}`, { token })));
+  check('X18 "what did they give you" is written once and private',
+    wrote.status === 201 && twiceGave.status === 409 && mineGave.data?.text === gave && otherGave.data === null,
+    `write ${wrote.status}, again ${twiceGave.status}, own ${JSON.stringify(mineGave.data)}, other ${JSON.stringify(otherGave.data)}`);
+
   // Finish needs a handover; the need opens again with the note, and the circle sees it
   r = await call('PATCH', `/api/commitments/${cid}/continue`, { token: VOL, body: { choice: 'finish' } });
   const noHandover = r.status;
@@ -186,6 +205,23 @@ async function login(userId) {
       && needNow.data?.handover?.note === handover && circleNow.data?.handovers?.some(h => h.note === handover) && afterFinish.status === 409,
     `no handover ${noHandover}, status ${r.data?.status}, need ${needNow.data?.status}, circle sees ${!!circleNow.data?.handovers?.length}, continue after finish ${afterFinish.status}`);
 
+  // "What the group wanted to say": coordinator only, once the seva has finished, never money or a word we
+  // avoid, only after the Dignity Check was run and approved; stored in its own language and shown to the volunteer
+  const words = (token, body) => call('POST', `/api/commitments/${cid}/community-words`, { token, body });
+  const wByVol = await words(VOL, { text: 'They miss you.', dignityChecked: true });
+  const wMoney = await words(COORD, { text: 'They said thank you for the income of 5000.', dignityChecked: true });
+  const wAvoid = await words(COORD, { text: 'The poor children miss you.', dignityChecked: true });
+  const wUnchecked = await words(COORD, { text: 'They said the Saturday mornings are theirs now.' });
+  const wName = await call('POST', '/api/bridge/dignity-check', { token: COORD, body: { text: 'Ravi said he misses you, his income is 5000.' } });
+  const wOk = await words(COORD, { text: 'சனிக்கிழமை காலை இப்போது எங்களுடையது என்றார்கள்.', language: 'ta', dignityChecked: true });
+  const wTwice = await words(COORD, { text: 'Again', dignityChecked: true });
+  const seenByVol = await call('GET', `/api/commitments/${cid}`, { token: VOL });
+  check('X20 "what the group wanted to say": coordinator only, after finish, checked; money or a name is rejected or flagged',
+    wByVol.status === 403 && wMoney.status === 400 && wAvoid.status === 400 && wUnchecked.status === 400
+      && wName.data?.flags?.length >= 1 && wOk.status === 200 && wTwice.status === 409
+      && seenByVol.data?.communityWords?.language === 'ta' && seenByVol.data?.communityWords?.text === 'சனிக்கிழமை காலை இப்போது எங்களுடையது என்றார்கள்.',
+    `volunteer ${wByVol.status}, money ${wMoney.status}, avoid ${wAvoid.status}, unchecked ${wUnchecked.status}, name flags ${wName.data?.flags?.length}, ok ${wOk.status} ${JSON.stringify(wOk.error || '')}, twice ${wTwice.status}, seen ${JSON.stringify(seenByVol.data?.communityWords)}`);
+
   // The private diary through the gateway: only the writer, even with faked headers
   const ARJUN = await login(ids.users.seededVolunteer);
   const diary = token => call('GET', `/api/reflect/entries?commitmentId=${ids.commitments.seeded}`, { token, headers: { 'x-user-id': ids.users.seededVolunteer } });
@@ -193,6 +229,83 @@ async function login(userId) {
   check('X5  diary: only the writer can read it (faked x-user-id ignored)',
     own.data?.length === 1 && other.data?.length === 0 && coord.data?.length === 0 && member.data?.length === 0,
     `own ${own.data?.length}, outsider ${other.data?.length}, coordinator ${coord.data?.length}, circle member ${member.data?.length}`);
+
+  // The Sankalpa is sealed once and read back only by its writer
+  const sankalpa = token => call('GET', `/api/reflect/sankalpa?commitmentId=${ids.commitments.seeded}`, { token, headers: { 'x-user-id': ids.users.seededVolunteer } });
+  const [mine, theirs, coordS] = await Promise.all([ARJUN, MEMBER, COORD].map(sankalpa));
+  const reseal = await call('POST', '/api/reflect/sankalpa', { token: ARJUN, body: { commitmentId: ids.commitments.seeded, text: 'Changed my mind' } });
+  check('X8  sankalpa: sealed once, only the writer reads it',
+    !!mine.data?.text && theirs.data === null && coordS.data === null && reseal.status === 409,
+    `own ${!!mine.data?.text}, circle member ${JSON.stringify(theirs.data)}, coordinator ${JSON.stringify(coordS.data)}, reseal ${reseal.status}`);
+
+  // My Seva so far, across commitments: the owner's first and latest words and Sankalpas; nothing for anyone else;
+  // no counts or totals in the answer
+  const mySeva = token => call('GET', '/api/reflect/my-seva', { token, headers: { 'x-user-id': ids.users.seededVolunteer } });
+  const [soFar, soFarOther, soFarCoord] = await Promise.all([ARJUN, MEMBER, COORD].map(mySeva));
+  check('X21 cross-commitment Then and Now: owner only, no counts',
+    soFar.data?.first?.text === 'I kept correcting them.' && soFar.data?.sankalpas?.length === 1 && soFar.data?.sankalpas[0].text === mine.data?.text
+      && soFarOther.data?.first === null && soFarOther.data?.sankalpas?.length === 0 && soFarCoord.data?.first === null
+      && !Object.keys(soFar.data).some(k => /count|total|streak|score/i.test(k)),
+    `own ${JSON.stringify(soFar.data)}, other ${JSON.stringify(soFarOther.data)}, coordinator ${JSON.stringify(soFarCoord.data)}`);
+
+  // Silent Seva: "Session over" marks this week served; only the volunteer, never a week still to come
+  const served = (token, week) => call('POST', `/api/commitments/${ids.commitments.seeded}/served`, { token, body: { week } });
+  const [byOther, notYet, mineNow] = [await served(MEMBER, 2), await served(ARJUN, 3), await served(ARJUN, 2)];
+  check('X10 silent seva marks only this week served, only by the volunteer',
+    byOther.status === 403 && notYet.status === 409 && mineNow.data?.sessions?.find(x => x.week === 2)?.status === 'served',
+    `other ${byOther.status}, future ${notYet.status}, own ${JSON.stringify(mineNow.data?.sessions || mineNow.error)}`);
+
+  // The AI layer: every bridge job answers (AI or its fallback), and none of them publishes anything
+  const card = { title: 'English Reading Support', want: 'Twelve students want to read English aloud.', place: 'Government School' };
+  const [dc, lg, su, ft, ftVol] = await Promise.all([
+    call('POST', '/api/bridge/dignity-check', { token: COORD, body: { text: 'poor boy Ravi, income 5000' } }),
+    call('POST', '/api/bridge/listening-guide', { token: VOL, body: card }),
+    call('POST', '/api/bridge/suggest-update', { token: COORD, body: { needCard: card, heardText: 'They wanted to read to me first.' } }),
+    call('POST', '/api/bridge/find-teaching', { token: VOL, body: { situation: 'I had to wait and I got impatient.' } }),
+    call('POST', '/api/bridge/dignity-check', { token: VOL, body: { text: 'x' } }),
+  ]);
+  const dcKinds = (dc.data?.flags || []).map(f => f.kind);
+  check('X11 dignity check flags "poor boy Ravi, income 5000" with a rewrite (volunteers 403)',
+    dcKinds.includes('name') && dcKinds.includes('money') && dcKinds.includes('word we avoid')
+      && !/Ravi|poor|5000/.test(dc.data?.suggestedRewrite || 'Ravi') && ftVol.status === 403,
+    JSON.stringify(dc.data || dc.error));
+  check('X12 listening guide gives 3 questions', lg.data?.questions?.length === 3 && lg.data.questions.every(q => q.endsWith('?')), JSON.stringify(lg.data || lg.error));
+  check('X13 suggest-update gives one line or null', su.status === 200 && (su.data.suggestion === null || typeof su.data.suggestion === 'string'), JSON.stringify(su.data || su.error));
+  const verifiedIds = new Set((await call('GET', '/api/wisdom', { token: VOL })).data.map(w => w.id));
+  check('X14 find-teaching returns only a verified id, or null', ft.status === 200 && (ft.data.id === null || verifiedIds.has(ft.data.id)),
+    `${JSON.stringify(ft.data || ft.error)}; verified ${[...verifiedIds]}`);
+
+  // Updated after listening: only the need's coordinator decides, once; an approved line shows on the card
+  const pending = (await call('GET', '/api/coordinator/overview', { token: COORD })).data?.listeningUpdates || [];
+  const fromMeera = pending.find(u => u.visitId === visitId);
+  const byVolunteer = await call('PATCH', `/api/visits/${visitId}/update`, { token: VOL, body: { action: 'approve', text: 'x' } });
+  r = await call('PATCH', `/api/visits/${visitId}/update`, { token: COORD, body: { action: 'approve', text: 'The students would like to speak first, and read after.' } });
+  const answeredAgain = await call('PATCH', `/api/visits/${visitId}/update`, { token: COORD, body: { action: 'reject' } });
+  const onCard = (await call('GET', `/api/needs/${needId}`, { token: OUTSIDER })).data?.updates || [];
+  check('X15 updated after listening: coordinator approves once, the line shows on the card',
+    !!fromMeera && byVolunteer.status === 403 && r.status === 200 && answeredAgain.status === 409
+      && onCard.some(u => u.text === 'The students would like to speak first, and read after.'),
+    `pending ${!!fromMeera}, volunteer ${byVolunteer.status}, approve ${r.status}, twice ${answeredAgain.status}, card ${JSON.stringify(onCard)}`);
+
+  // Community Check-in every 4 weeks: only the need's coordinator, all three answers, and the community can end it
+  const ci = (token, body) => call('POST', `/api/commitments/${ids.commitments.seeded}/check-in`, { token, body });
+  const answers = { helping: 'Yes, they read aloud more.', change: 'Start ten minutes later.', ownNow: 'Pick their own books.' };
+  const tooEarly = await ci(COORD, answers);                                                   // week 2: not due yet
+  await call('POST', '/api/demo/advance', { token: COORD, body: { commitmentId: ids.commitments.seeded, toWeek: 4 } });
+  const byVol = await ci(ARJUN, answers);
+  const missing = await ci(COORD, { ...answers, ownNow: '' });
+  const saved = await ci(COORD, { ...answers, end: true });
+  const closed = await call('GET', `/api/needs/${ids.needs.englishReading}`, { token: ARJUN });
+  check('X16 community check-in: due every 4 weeks, coordinator only, the community can end it',
+    tooEarly.status === 409 && byVol.status === 403 && missing.status === 400 && saved.data?.checkIns?.length === 1
+      && saved.data?.status === 'finished' && saved.data?.lastChoice === 'community-ended' && closed.data?.status === 'closed',
+    `early ${tooEarly.status}, volunteer ${byVol.status}, missing ${missing.status}, saved ${JSON.stringify(saved.data?.checkIns || saved.error)}, status ${saved.data?.status}, need ${closed.data?.status}`);
+
+  // A need keeps the coordinator's own words, in their language, beside the English card
+  r = await call('POST', '/api/needs', { token: COORD, body: { ...newNeed, consent: { readBack: true, coordinatorConsent: true }, original: { text: 'பத்து மாணவர்கள்', language: 'ta' } } });
+  const kept = await call('GET', `/api/needs/${r.data?._id}`, { token: VOL });
+  check('X9  need keeps the original words', kept.data?.original?.text === 'பத்து மாணவர்கள்' && kept.data?.original?.language === 'ta',
+    JSON.stringify(kept.data?.original || kept.error));
 
   // No gamification and no personal details of people served, in any response
   const BANNED_KEYS = /^(hours?|points?|rank(ing)?|score|streak|badges?|leaderboard|sentiment|age|income|caste|religion|photo\w*|beneficiar\w*)$/i;
@@ -212,23 +325,41 @@ async function login(userId) {
     call('GET', `/api/reflect/then-and-now?commitmentId=${ids.commitments.seeded}`, { token: ARJUN }),
     call('GET', '/api/wisdom', { token: VOL }),
   ]);
-  // Resource Connect: ask for 10 tablets, the college's offer is suggested, connect, hand over
-  r = await call('POST', '/api/resources', { token: COORD, body: { kind: 'request', type: 'Tablets', quantity: 10 } });
-  const request = r.data;
+  // Resource Connect: the school's seeded "we lack 10 tablets" is matched with the college's "we have",
+  // nearest first; connect, hand over, then "is it in use?". Never money.
+  const money = await call('POST', '/api/resources', { token: COORD, body: { kind: 'request', category: 'materials', mode: 'give', type: 'cash', quantity: 1 } });
+  r = await call('GET', '/api/resources/mine', { token: COORD });
+  const request = (r.data || []).find(x => x._id === ids.resources.schoolTablets);
   const suggested = request?.candidates?.[0];
   const linked = await call('POST', `/api/resources/${request?._id}/connect`, { token: COORD, body: { withId: suggested?._id } });
   const twice = await call('POST', `/api/resources/${request?._id}/connect`, { token: COORD, body: { withId: suggested?._id } });
   const handed = await call('POST', `/api/resources/${request?._id}/handover`, { token: COORD });
+  const inUse = await call('POST', `/api/resources/${request?._id}/in-use`, { token: COORD, body: { answer: 'yes' } });
   const volunteerBlocked = await call('GET', '/api/resources/mine', { token: VOL });
-  check('X7  resource connect: match, connect, hand over (coordinators only)',
-    r.status === 201 && suggested?.org?.name === 'Sri Ramana Arts College' && suggested?.type === 'tablets'
+  check('X7  resource connect: nearest match, connect, hand over, in use; never money; coordinators only',
+    money.status === 400 && suggested?.org?.name === 'Sri Ramana Arts College' && suggested?.type === 'tablets' && suggested?.distanceKm >= 1
       && linked.data?.status === 'matched' && twice.status === 409 && handed.data?.status === 'handed-over'
-      && handed.data?.matchedWith?.status === 'handed-over' && volunteerBlocked.status === 403,
-    `create ${r.status}, suggested ${suggested?.org?.name}, connect ${linked.data?.status}, again ${twice.status}, handover ${handed.data?.status}, volunteer ${volunteerBlocked.status}`);
+      && handed.data?.matchedWith?.status === 'handed-over' && inUse.data?.inUse?.answer === 'yes' && volunteerBlocked.status === 403,
+    `money ${money.status}, suggested ${suggested?.org?.name} ${suggested?.distanceKm} km, connect ${linked.data?.status}, again ${twice.status}, handover ${handed.data?.status}, in use ${JSON.stringify(inUse.data?.inUse || inUse.error)}, volunteer ${volunteerBlocked.status}`);
 
   sample.push(await call('GET', '/api/resources/mine', { token: COORD }));
   const bannedKeys = keysIn(sample.map(x => x.data));
   check('X6  no hours, points, ranks, scores or personal fields in any response', bannedKeys.length === 0, `found ${[...new Set(bannedKeys)]}`);
+
+  // Closing a need (school shut, organisation moved): coordinator only; every active commitment on it is
+  // finished as complete ("need-closed"), and the volunteer is asked nothing. Built on a fresh ramp.
+  const v3 = await call('POST', `/api/needs/${ids.needs.need3}/visits`, { token: OUTSIDER });
+  await call('PATCH', `/api/visits/${v3.data?._id}/heard`, { token: OUTSIDER, body: { text: 'They want to choose the songs.' } });
+  await call('PATCH', `/api/visits/${v3.data?._id}/decision`, { token: COORD, body: { yes: true } });
+  const c3 = await call('POST', '/api/commitments', { token: OUTSIDER, body: { visitId: v3.data?._id, weeks: 4, sentence: 'I will come.' } });
+  const closeByVol = await call('PATCH', `/api/needs/${ids.needs.need3}/close`, { token: OUTSIDER, body: {} });
+  const closedNeed = await call('PATCH', `/api/needs/${ids.needs.need3}/close`, { token: COORD, body: { reason: 'The school has moved.' } });
+  const closedAgain = await call('PATCH', `/api/needs/${ids.needs.need3}/close`, { token: COORD, body: {} });
+  const c3Now = await call('GET', `/api/commitments/${c3.data?._id}`, { token: OUTSIDER });
+  check('X19 closing a need marks its active commitments finished (coordinator only)',
+    c3.status === 201 && closeByVol.status === 403 && closedNeed.data?.status === 'closed' && closedNeed.data?.commitmentsFinished === 1
+      && closedAgain.status === 409 && c3Now.data?.status === 'finished' && c3Now.data?.lastChoice === 'need-closed' && c3Now.data?.invitation === null,
+    `commit ${c3.status}, volunteer ${closeByVol.status}, close ${JSON.stringify(closedNeed.data || closedNeed.error)}, again ${closedAgain.status}, commitment ${c3Now.data?.status}/${c3Now.data?.lastChoice}`);
 
   const count = st => results.filter(x => x === st).length;
   console.log(`\n${count('PASS')} passed, ${count('FAIL')} failed`);

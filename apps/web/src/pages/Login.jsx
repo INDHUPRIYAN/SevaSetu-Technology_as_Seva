@@ -5,7 +5,6 @@ import { api } from '../lib/api';
 import { homeFor, useAuth } from '../lib/auth';
 import { useLoad } from '../lib/useLoad';
 import { Wordmark } from '../components/ui/Brand';
-import { HeroScene } from '../components/ui/Art';
 import { Avatar, ErrorNote, Loading } from '../components/ui/Bits';
 
 export default function Login() {
@@ -35,11 +34,10 @@ export default function Login() {
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-[430px] bg-cream-100 lg:grid lg:max-w-none lg:grid-cols-[1.15fr_1fr]">
-      <div className="relative h-80 overflow-hidden bg-gradient-to-b from-[#F6A65A] via-[#F9C88F] to-cream-100 px-5 pt-[max(env(safe-area-inset-top),20px)] lg:sticky lg:top-0 lg:h-dvh lg:px-14 lg:pt-12">
-        <HeroScene className="pointer-events-none absolute inset-0 h-full w-full" birdsClassName="lg:hidden" />
+      <div className="relative overflow-hidden px-4 pt-[max(env(safe-area-inset-top),24px)] pb-8 lg:sticky lg:top-0 lg:h-dvh lg:px-14 lg:pt-12">
         <div className="relative">
           <Wordmark size="lg" />
-          <p className="mt-8 max-w-[13rem] font-serif text-[26px] font-semibold leading-tight text-ink-900 lg:mt-24 lg:max-w-md lg:text-[52px] lg:leading-[1.1]">
+          <p className="mt-8 max-w-[13rem] font-serif text-[24px] font-semibold leading-tight text-ink-900 lg:mt-24 lg:max-w-md lg:text-[24px] lg:leading-[1.1]">
             Who is serving today?
           </p>
           <p className="mt-5 hidden max-w-sm text-lg leading-relaxed text-ink-800 lg:block">
@@ -48,8 +46,8 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="relative -mt-6 space-y-6 px-4 pb-10 lg:mx-auto lg:mt-0 lg:flex lg:w-full lg:max-w-lg lg:flex-col lg:justify-center lg:px-10 lg:py-16">
-        <p className="rounded-2xl bg-cream-50 px-4 py-3 text-sm text-ink-700 shadow-card">
+      <div className="relative space-y-6 px-4 pb-10 lg:mx-auto lg:mt-0 lg:flex lg:w-full lg:max-w-lg lg:flex-col lg:justify-center lg:px-10 lg:py-16">
+        <p className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-ink-700">
           This is a demo. Pick a person to see SevaSetu through their eyes. No password needed.
         </p>
         <ErrorNote error={error || users.error} onRetry={users.error ? users.reload : undefined} />
@@ -72,7 +70,7 @@ function UserGroup({ title, users, busy, onPick }) {
             <button
               onClick={() => onPick(u)}
               disabled={!!busy}
-              className="flex w-full items-center gap-3.5 rounded-3xl bg-cream-50 p-3.5 text-left shadow-card ring-1 ring-cream-300/70 transition hover:ring-saffron-300 active:scale-[0.99] disabled:opacity-60"
+              className="flex w-full items-center gap-3.5 rounded-2xl bg-cream-50 p-4 text-left shadow-card ring-1 ring-cream-300/70 transition hover:ring-saffron-300 active:scale-[0.99] disabled:opacity-60"
             >
               <Avatar name={u.name} />
               <span className="flex-1">

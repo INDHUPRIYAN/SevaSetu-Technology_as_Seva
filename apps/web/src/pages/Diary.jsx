@@ -4,15 +4,31 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import { toast } from '../lib/toast';
 import { useAuth } from '../lib/auth';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
 import WhyLink from '../components/seva/WhyLink';
-import WisdomMoment from '../components/seva/WisdomMoment';
 import { Check, ChevronRight, Leaf, Lock, Pages } from '../components/seva/icons';
 
 const needTitleOf = c => c?.need?.title || c?.needTitle || c?.title || '';
+
+// Hard Day mode: her own words from an earlier week, and one question. No advice, no score.
+function HardDay({ earlier }) {
+  return (
+    <section aria-labelledby="hard-day" className="mt-5 rounded-2xl bg-cream-100 px-4 py-4">
+      <h3 id="hard-day" className="sr-only">For a hard day</h3>
+      {earlier && (
+        <figure>
+          <figcaption className="text-sm text-ink-soft">You wrote, on an earlier week:</figcaption>
+          <blockquote className="mt-1 font-serif text-lg leading-snug whitespace-pre-line text-ink italic break-words">“{earlier.text}”</blockquote>
+        </figure>
+      )}
+      <p className={`font-serif text-lg leading-snug text-ink ${earlier ? 'mt-4' : ''}`}>What was in your hands today, and what was not?</p>
+    </section>
+  );
+}
 
 export default function Diary() {
   const { commitmentId } = useParams();
@@ -68,6 +84,7 @@ export default function Diary() {
       setEntries(list => [...list.filter(x => x.week !== entry.week), entry].sort((a, b) => a.week - b.week));
       setText(entry.text);
       setSave({ status: 'saved' });
+      toast();
     } catch (err) {
       setSave({ status: 'error', message: err?.message || 'Could not save just now. Please try again.' });
     }
@@ -79,7 +96,7 @@ export default function Diary() {
     return shell(
       <>
         <PageHeader back={{ to: '/coordinator', label: 'Dashboard' }} eyebrow="Seva Diary" title="This diary is private" />
-        <Card className="mt-5 flex gap-4 p-5 @2xl:p-6">
+        <Card className="mt-5 flex gap-4 p-4 @2xl:p-6">
           <span className="grid size-12 shrink-0 place-items-center rounded-full bg-peach text-saffron"><Lock /></span>
           <p className="text-base leading-relaxed text-ink-soft">
             Only the volunteer who serves can read their Seva Diary. Coordinators never see it, and nothing in it is
@@ -95,7 +112,7 @@ export default function Diary() {
       <div aria-busy="true" aria-live="polite">
         <p className="sr-only">Opening your diary…</p>
         <div className="h-9 w-40 animate-pulse rounded-xl bg-peach" />
-        <div className="mt-5 h-72 animate-pulse rounded-3xl bg-peach-soft" />
+        <div className="mt-5 h-72 animate-pulse rounded-2xl bg-peach-soft" />
       </div>,
     );
   }
@@ -104,7 +121,7 @@ export default function Diary() {
     return shell(
       <>
         <PageHeader back={{ to: '/my-seva', label: 'My Seva' }} eyebrow="Seva Diary" title="Your diary" />
-        <Card className="mt-5 p-5 @2xl:p-6" role="alert">
+        <Card className="mt-5 p-4 @2xl:p-6" role="alert">
           <p className="text-base text-ink">We could not open this diary just now.</p>
           <Button variant="secondary" className="mt-4" onClick={() => setAttempt(n => n + 1)}>Try again</Button>
         </Card>
@@ -120,9 +137,9 @@ export default function Diary() {
       <PageHeader back={{ to: '/my-seva', label: 'My Seva' }} eyebrow="Seva Diary" title={`Week ${week}`} subtitle={needTitle} />
 
       <div className="mt-5 grid gap-5 @3xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] @3xl:items-start">
-        <Card className="p-5 @2xl:p-7">
+        <Card className="p-4 @2xl:p-6">
           <form onSubmit={onSave} aria-labelledby="diary-question">
-            <h2 id="diary-question" className="font-serif text-2xl leading-snug font-semibold text-ink @2xl:text-[1.7rem]">
+            <h2 id="diary-question" className="font-serif text-2xl leading-snug font-semibold text-ink @2xl:text-2xl">
               {question.text}
             </h2>
             <p className="mt-2 flex items-center gap-2 text-base text-ember italic">
@@ -169,7 +186,7 @@ export default function Diary() {
               {save.status === 'error' && <p className="mt-3 text-right text-sm text-ember" role="alert">{save.message}</p>}
             </div>
           </form>
-          {save.status === 'saved' && hardDay && <WisdomMoment moment="hard-day" className="mt-5" />}
+          {hardDay && <HardDay earlier={entries.filter(x => x.week < week).at(-1)} />}
         </Card>
 
         <div className="flex flex-col gap-5">
@@ -198,7 +215,7 @@ export default function Diary() {
 
           <Link
             to={`/reflect/${commitmentId}/then-and-now`}
-            className="group flex items-center gap-4 rounded-3xl border border-line bg-surface p-4 shadow-card hover:bg-peach-soft"
+            className="group flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 shadow-card hover:bg-peach-soft"
           >
             <span className="grid size-12 shrink-0 place-items-center rounded-full bg-peach text-saffron"><Pages /></span>
             <span className="min-w-0 flex-1">

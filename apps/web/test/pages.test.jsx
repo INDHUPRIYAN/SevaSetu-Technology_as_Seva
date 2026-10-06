@@ -73,6 +73,19 @@ describe('Diary', () => {
     expect(within(past).getByText('A hard day')).toBeInTheDocument();
   });
 
+  it('Hard Day mode: ticking it shows her own earlier words and one question, with no advice or score', async () => {
+    signIn(VOLUNTEER);
+    diaryApi();
+    const { container } = openDiary();
+    await userEvent.click(await screen.findByLabelText('This was a hard day'));
+    expect(screen.getByText('You wrote, on an earlier week:')).toBeInTheDocument();
+    expect(screen.getAllByText(/I kept correcting them\./).length).toBeGreaterThanOrEqual(2);   // in Hard Day and in past entries
+    expect(screen.getByText('What was in your hands today, and what was not?')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Practice|Interpretation|score/i);
+    await userEvent.click(screen.getByLabelText('This was a hard day'));
+    expect(screen.queryByText('What was in your hands today, and what was not?')).toBeNull();
+  });
+
   it('opening the diary again in the same week shows what was written, ready to update', async () => {
     signIn(VOLUNTEER);
     diaryApi({ entries: [E1, { ...E1, _id: 'e2', week: 2, text: 'Already written', hardDay: true, question: Q2 }] });
@@ -142,24 +155,36 @@ describe('Diary', () => {
 });
 
 describe('Then and Now', () => {
-  const openThenAndNow = data => {
-    api.get.mockResolvedValue(data);
+  const openThenAndNow = (data, sankalpa = null) => {
+    api.get.mockImplementation(url => Promise.resolve(url === '/api/reflect/sankalpa' ? sankalpa : data));
     return renderAt(`/reflect/${COMMITMENT}/then-and-now`, [{ path: '/reflect/:commitmentId/then-and-now', element: <ThenAndNow /> }]);
   };
   const E2 = { _id: 'e2', week: 2, text: 'I waited, and he finished the sentence himself.', question: Q2 };
 
-  it('U10: "Then — Week 1" beside "Now — Week 2", each with its question and words, and the line once', async () => {
-    const { container } = openThenAndNow({ first: E1, latest: E2 });
-    expect(await screen.findByRole('heading', { name: 'Then — Week 1' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Now — Week 2' })).toBeInTheDocument();
+  it('U10: "Then" beside "Now", each with its question and words, her Sankalpa above, no numbers', async () => {
+    const { container } = openThenAndNow({ first: E1, latest: E2 }, { text: 'To learn to wait.', sealedAt: '2026-10-01' });
+    expect(await screen.findByRole('heading', { name: 'Then' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Now' })).toBeInTheDocument();
+    expect(screen.getByText('Your Sankalpa')).toBeInTheDocument();
+    expect(screen.getByText(/To learn to wait\./)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Week \d/);
     expect(screen.getByText(Q1.text)).toBeInTheDocument();
     expect(screen.getByText(Q2.text)).toBeInTheDocument();
     expect(screen.getByText(/I kept correcting them\./)).toBeInTheDocument();
     expect(screen.getByText(/he finished the sentence himself/)).toBeInTheDocument();
-    expect(screen.getAllByText(/They alone live who live for others/)).toHaveLength(1);
+    expect(container.textContent).not.toMatch(/They alone live who live for others/);   // no hard-coded quotes
     expect(container.textContent).not.toMatch(BANNED);
     expect(container.querySelector('svg[role=img], canvas, progress, meter')).toBeNull();      // no chart
     expect(api.get).toHaveBeenCalledWith('/api/reflect/then-and-now', { params: { commitmentId: COMMITMENT } });
+    expect(api.get).toHaveBeenCalledWith('/api/reflect/sankalpa', { params: { commitmentId: COMMITMENT } });
+  });
+
+  it('without a Sankalpa (or if it cannot load), her words still show', async () => {
+    api.get.mockImplementation(url => (url === '/api/reflect/sankalpa'
+      ? Promise.reject({ message: 'down' }) : Promise.resolve({ first: E1, latest: E2 })));
+    renderAt(`/reflect/${COMMITMENT}/then-and-now`, [{ path: '/reflect/:commitmentId/then-and-now', element: <ThenAndNow /> }]);
+    expect(await screen.findByRole('heading', { name: 'Then' })).toBeInTheDocument();
+    expect(screen.queryByText('Your Sankalpa')).toBeNull();
   });
 
   it('U11: with no entries, a kind message and a way to the diary — not a blank page', async () => {
@@ -170,7 +195,7 @@ describe('Then and Now', () => {
 
   it('with one entry, the first words and a note that the newest will come', async () => {
     openThenAndNow({ first: E1, latest: null });
-    expect(await screen.findByRole('heading', { name: 'Then — Week 1' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Then' })).toBeInTheDocument();
     expect(screen.getByText(/newest words will appear here/)).toBeInTheDocument();
   });
 
@@ -205,7 +230,8 @@ describe('Wisdom', () => {
     expect(api.get).toHaveBeenLastCalledWith('/api/wisdom', { params: { theme: 'patience' } });
 
     await userEvent.click(screen.getByRole('button', { name: 'Strength' }));
-    expect(await screen.findByText('No teachings for this theme yet.')).toBeInTheDocument();
+    expect(await screen.findByText('No checked teachings for this theme yet.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all themes' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'All' }));
     expect(await screen.findByText(/Work text/)).toBeInTheDocument();

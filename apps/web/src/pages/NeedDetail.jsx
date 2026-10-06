@@ -1,8 +1,8 @@
 import { useParams } from 'react-router-dom';
-import { BadgeCheck, CalendarDays, Ear, HeartHandshake, MapPin, Sprout, Target, Users } from 'lucide-react';
+import { BadgeCheck, CalendarDays, Ear, HeartHandshake, MapPin, MessageSquareQuote, RefreshCw, Sprout, Target, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLoad } from '../lib/useLoad';
-import { rhythm } from '../lib/format';
+import { rhythm, shortDate } from '../lib/format';
 import { ErrorNote, IconBadge, Loading, PageHeader, StatusPill } from '../components/ui/Bits';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
@@ -50,7 +50,7 @@ export default function NeedDetail() {
             <Card key={p.title} className="flex gap-3.5 p-4 lg:gap-5 lg:p-6">
               <IconBadge icon={p.icon} size="sm" className="lg:h-12 lg:w-12" />
               <div>
-                <h2 className="font-serif text-[17px] font-semibold text-ink-900 lg:text-xl">{p.title}</h2>
+                <h2 className="font-serif text-[18px] font-semibold text-ink-900 lg:text-xl">{p.title}</h2>
                 <p className="mt-1 text-[15px] leading-relaxed text-ink-700 lg:mt-2 lg:text-base">{p.text || '—'}</p>
               </div>
             </Card>
@@ -59,18 +59,36 @@ export default function NeedDetail() {
           <Card className="flex gap-3.5 p-4 lg:gap-5 lg:p-6">
             <IconBadge icon={CalendarDays} size="sm" className="lg:h-12 lg:w-12" />
             <div className="space-y-1.5 text-[15px] text-ink-700 lg:text-base">
-              <h2 className="font-serif text-[17px] font-semibold text-ink-900 lg:text-xl">Rhythm</h2>
+              <h2 className="font-serif text-[18px] font-semibold text-ink-900 lg:text-xl">Rhythm</h2>
               <p>{rhythm(n.rhythm)}, for {n.weeks} weeks</p>
               <p className="flex items-start gap-1.5"><MapPin size={16} className="mt-1 shrink-0 text-ink-500" />{n.place}{n.org.distanceKm != null && ` · ${n.org.distanceKm} km`}</p>
               {n.groupSize && <p className="flex items-center gap-1.5"><Users size={16} className="text-ink-500" />A group of {n.groupSize}</p>}
             </div>
           </Card>
 
+          {n.updates?.length > 0 && (
+            <Card className="flex gap-3.5 p-4 lg:gap-5 lg:p-6">
+              <IconBadge icon={RefreshCw} size="sm" className="lg:h-12 lg:w-12" />
+              <div className="min-w-0">
+                <h2 className="font-serif text-[18px] font-semibold text-ink-900 lg:text-xl">Updated after listening</h2>
+                <ul className="mt-1 space-y-2">
+                  {n.updates.map(u => (
+                    <li key={`${u.at}-${u.text}`} className="text-[15px] leading-relaxed text-ink-700 lg:text-base">
+                      {u.text} <span className="text-xs text-ink-500">· {shortDate(u.at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Card>
+          )}
+
+          {n.original?.text && <CommunityWords original={n.original} />}
+
           {n.handover?.note && (
             <Card className="flex gap-3.5 p-4 lg:gap-5 lg:p-6">
               <IconBadge icon={HeartHandshake} size="sm" className="lg:h-12 lg:w-12" />
               <div>
-                <h2 className="font-serif text-[17px] font-semibold text-ink-900 lg:text-xl">From the volunteer before you</h2>
+                <h2 className="font-serif text-[18px] font-semibold text-ink-900 lg:text-xl">From the volunteer before you</h2>
                 <p className="mt-1 font-serif text-[15px] italic leading-relaxed text-ink-700 lg:mt-2 lg:text-base">“{n.handover.note}”</p>
               </div>
             </Card>
@@ -99,6 +117,23 @@ export default function NeedDetail() {
         <div className="mt-2 text-center"><WhyLink rule="listen-first" /></div>
       </div>
     </div>
+  );
+}
+
+const LANGUAGE = { en: 'English', ta: 'Tamil', hi: 'Hindi' };
+
+// the coordinator's own words, untranslated, as the community said them
+function CommunityWords({ original }) {
+  return (
+    <section aria-labelledby="community-words" className="rounded-2xl px-4 py-3 ring-1 ring-cream-300/70 lg:px-6 lg:py-4">
+      <h2 id="community-words" className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-ink-700">
+        <MessageSquareQuote size={16} className="text-ink-500" /> In the community’s words
+        <span className="font-normal text-ink-500">· {LANGUAGE[original.language] || original.language}</span>
+      </h2>
+      <p lang={original.language} className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-line text-ink-700 break-words">
+        {original.text}
+      </p>
+    </section>
   );
 }
 

@@ -31,7 +31,7 @@ export default function Opportunities() {
       <PageHeader title="Find a Need" subtitle="Three questions. At most three answers." back={false} />
 
       <div className="xl:grid xl:grid-cols-[360px_1fr] xl:items-start xl:gap-10">
-      <div className="space-y-5 xl:sticky xl:top-8 lg:rounded-3xl lg:bg-cream-50 lg:p-6 lg:shadow-card lg:ring-1 lg:ring-cream-300/70">
+      <div className="space-y-5 xl:sticky xl:top-8 lg:rounded-2xl lg:bg-cream-50 lg:p-6 lg:shadow-card lg:ring-1 lg:ring-cream-300/70">
         <Question n={1} title="Which day can you give?">
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
             {DAYS.map(d => <Chip key={d} active={d === day} onClick={() => set('day', d)}>{d.slice(0, 3)}</Chip>)}
@@ -56,7 +56,7 @@ export default function Opportunities() {
       </div>
 
       <section className="mt-8 xl:mt-0" aria-live="polite">
-        <h2 className="mb-3 font-serif text-[22px] font-semibold text-ink-900">Needs that fit you</h2>
+        <h2 className="mb-3 font-serif text-[24px] font-semibold text-ink-900">Needs that fit you</h2>
         <ErrorNote error={needs.error} onRetry={needs.reload} />
         {needs.loading && <Loading label="Looking nearby" />}
         {!needs.loading && !needs.error && (needs.data?.length ? (

@@ -23,16 +23,28 @@ const routes = [
 ];
 const open = () => renderAt('/coordinator/post-need', routes);
 
+// The Dignity Check stand-in flags "Ravi" and "poor", like the bridge's rules do
+function dignity(text) {
+  const flags = [...text.matchAll(/Ravi|poor/g)].map(m => ({
+    start: m.index, end: m.index + m[0].length, match: m[0], kind: m[0] === 'Ravi' ? 'name' : 'word we avoid',
+    why: m[0] === 'Ravi' ? 'Names one person.' : 'Describes people by what they lack.',
+  }));
+  return { flags, suggestedRewrite: flags.length ? 'A group of students wants help.' : null, source: 'rules' };
+}
+
+const needsCalls = () => api.post.mock.calls.filter(([url]) => url === '/api/needs');
+
 function mockBridge({ privacyFlags = [], source = 'ai', draft = DRAFT } = {}) {
-  api.post.mockImplementation(url => {
+  api.post.mockImplementation((url, body) => {
     if (url === '/api/bridge/draft-need') return Promise.resolve({ draft, privacyFlags, source });
+    if (url === '/api/bridge/dignity-check') return Promise.resolve(dignity(body.text));
     if (url === '/api/needs') return Promise.resolve({ _id: 'n1', ...draft, status: 'open' });
     return Promise.reject(new Error(url));
   });
 }
 
 async function makeDraft(text = '12 students want help reading English aloud on Saturday mornings', lang = 'English') {
-  await userEvent.click(screen.getByText(lang));
+  await userEvent.click(screen.getByRole('radio', { name: new RegExp(lang) }));   // the draft language, not the UI toggle
   await userEvent.type(screen.getByLabelText('What does the community need?'), text);
   await userEvent.click(screen.getByRole('button', { name: 'Make draft' }));
   return screen.findByRole('heading', { name: 'Check the card' });
@@ -82,18 +94,34 @@ describe('Post a Need', () => {
     await userEvent.clear(title);
     await userEvent.type(title, 'Reading Together');
     expect(title).toHaveValue('Reading Together');
-    expect(screen.queryByTestId('privacy-warnings')).not.toBeInTheDocument();
+    expect(await screen.findByText(/Nothing to change/)).toBeInTheDocument();
   });
 
-  it('U14: privacy warnings show in yellow above the form', async () => {
+  it('U14: Dignity Check highlights the words, says why, and offers a Suggested rewrite', async () => {
     signIn(COORDINATOR);
-    mockBridge({ privacyFlags: ['Mentions money or income', 'Uses a word we avoid about the people served'] });
+    mockBridge();
     open();
     await makeDraft('poor boy Ravi, income 5000');
-    const warnings = screen.getByTestId('privacy-warnings');
-    expect(within(warnings).getByText('Mentions money or income')).toBeInTheDocument();
-    expect(within(warnings).getAllByRole('listitem')).toHaveLength(2);
-    expect(warnings.compareDocumentPosition(screen.getByLabelText('Title')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const check = screen.getByTestId('dignity-check');
+    const marks = await within(check).findAllByText(/^(Ravi|poor)$/, { selector: 'mark' });
+    expect(marks).toHaveLength(2);
+    expect(within(check).getByText(/Names one person\./)).toBeInTheDocument();
+    expect(within(check).getByText('Suggested')).toBeInTheDocument();
+    expect(check.compareDocumentPosition(screen.getByLabelText('Title')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('Use this puts the rewrite in; Keep mine leaves the words as they are', async () => {
+    signIn(COORDINATOR);
+    mockBridge();
+    open();
+    await makeDraft('poor boy Ravi, income 5000');
+    await userEvent.click(await screen.findByRole('button', { name: 'Use this' }));
+    expect(screen.getByLabelText('In the community’s words')).toHaveValue('A group of students wants help.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Make draft' }));        // the words are kept
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep mine' }));
+    expect(screen.getByLabelText('In the community’s words')).toHaveValue('poor boy Ravi, income 5000');
   });
 
   it('a fallback draft says it is a sample to change', async () => {
@@ -118,7 +146,7 @@ describe('Post a Need', () => {
     const publish = screen.getByRole('button', { name: 'Publish need' });
     expect(publish).toBeDisabled();
     await userEvent.click(publish);
-    expect(api.post).toHaveBeenCalledTimes(1);                         // only the draft call
+    expect(needsCalls()).toHaveLength(0);                              // nothing published
     await userEvent.click(screen.getByLabelText(/they confirmed it/));
     expect(publish).toBeDisabled();                                    // the community alone is not enough
     await userEvent.click(screen.getByLabelText(/I consent to publishing this need/));
@@ -133,7 +161,11 @@ describe('Post a Need', () => {
     await confirmAndConsent();
     await userEvent.click(screen.getByRole('button', { name: 'Publish need' }));
     expect(await screen.findByText('Dashboard page')).toBeInTheDocument();
-    expect(api.post).toHaveBeenLastCalledWith('/api/needs', { ...DRAFT, consent: { readBack: true, coordinatorConsent: true, agreedOn: todayISO() } });
+    expect(api.post).toHaveBeenLastCalledWith('/api/needs', {
+      ...DRAFT,
+      consent: { readBack: true, coordinatorConsent: true, agreedOn: todayISO() },
+      original: { text: '12 students want help reading English aloud on Saturday mornings', language: 'en' },
+    });
   });
 
   it('a field left empty blocks Publish and is pointed out', async () => {
@@ -146,7 +178,7 @@ describe('Post a Need', () => {
     expect(screen.getByText('Please say where it happens')).toBeInTheDocument();
     expect(screen.getByText(/at least one interest/)).toBeInTheDocument();
     expect(screen.getByLabelText('Place')).toHaveFocus();
-    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(needsCalls()).toHaveLength(0);
   });
 
   it('an error from endpoint 6 is shown and the form stays', async () => {
@@ -154,6 +186,7 @@ describe('Post a Need', () => {
     mockBridge();
     open();
     await makeDraft();
+    await screen.findByText(/Nothing to change/);
     api.post.mockRejectedValueOnce({ message: 'Please read the card back to the community first' });
     await confirmAndConsent();
     await userEvent.click(screen.getByRole('button', { name: 'Publish need' }));

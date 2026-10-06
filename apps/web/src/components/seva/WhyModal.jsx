@@ -89,7 +89,7 @@ export default function WhyModal({ rule, onClose }) {
         aria-labelledby="why-title"
         aria-describedby="why-teaching"
         className="relative max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl border border-line bg-surface p-6 pb-8
-          shadow-card sm:max-w-md sm:rounded-3xl sm:pb-6"
+          shadow-card sm:max-w-md sm:rounded-2xl sm:pb-6"
       >
         <button
           ref={closeRef}

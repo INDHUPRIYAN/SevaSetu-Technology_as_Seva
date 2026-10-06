@@ -6,18 +6,20 @@ const Entry = require('../services/reflect/src/models/Entry');
 const Wisdom = require('../services/reflect/src/models/Wisdom');
 const Why = require('../services/reflect/src/models/Why');
 const Moment = require('../services/reflect/src/models/Moment');
-const { QUESTIONS, WHYS, MOMENTS, WISDOM, SEEDED_ENTRY } = require('./reflect-data');
+const Sankalpa = require('../services/reflect/src/models/Sankalpa');
+const Received = require('../services/reflect/src/models/Received');
+const { QUESTIONS, WHYS, MOMENTS, WISDOM, SEEDED_ENTRY, SEEDED_SANKALPA } = require('./reflect-data');
 
 const mongoose = Question.base;                  // the same mongoose the models were built with
 
 // Seeds the database mongoose is connected to. Used by the CLI below, the tests and the dev stack.
 async function seedReflect() {
-  await Promise.all([Question, Entry, Wisdom, Why, Moment].map(m => m.deleteMany({})));
-  await Promise.all([Question, Entry, Wisdom, Why, Moment].map(m => m.init()));     // unique indexes exist
+  await Promise.all([Question, Entry, Wisdom, Why, Moment, Sankalpa, Received].map(m => m.deleteMany({})));
+  await Promise.all([Question, Entry, Wisdom, Why, Moment, Sankalpa, Received].map(m => m.init()));     // unique indexes exist
 
   const questions = await Question.insertMany(QUESTIONS);
   // one by one, so the _id order (which "today" uses) is the order written in the data file
-  for (const { theme, text, source, volume, page } of WISDOM) await Wisdom.create({ theme, text, source, volume, page });
+  for (const { id, theme, text, source, volume, page, verified } of WISDOM) await Wisdom.create({ key: id, theme, text, source, volume, page, verified });
   await Why.insertMany(WHYS);
   await Moment.insertMany(MOMENTS);
 
@@ -28,6 +30,7 @@ async function seedReflect() {
     questionId: weekOne._id,
     ...SEEDED_ENTRY,
   });
+  await Sankalpa.create({ userId: ids.users.seededVolunteer, commitmentId: ids.commitments.seeded, text: SEEDED_SANKALPA });
 
   return {
     questions: questions.length,
@@ -35,7 +38,8 @@ async function seedReflect() {
     whys: WHYS.length,
     moments: MOMENTS.length,
     entries: 1,
-    uncheckedQuotes: WISDOM.filter(w => !w.checked).length,
+    sankalpas: 1,
+    unverifiedQuotes: WISDOM.filter(w => !w.verified).length,
   };
 }
 
@@ -48,9 +52,9 @@ if (require.main === module) {
     const counts = await seedReflect();
     console.log(`seeded seva_reflect: ${counts.questions} questions, ${counts.wisdom} wisdom, `
       + `${counts.whys} whys, ${counts.moments} moments, ${counts.entries} diary entry`);
-    if (counts.uncheckedQuotes)
-      console.warn(`WARNING: ${counts.uncheckedQuotes} quote(s) still need a person to check them in the `
-        + 'Complete Works (seed/wisdom-quotes.js, checked: false).');
+    if (counts.unverifiedQuotes)
+      console.warn(`NOTE: ${counts.unverifiedQuotes} of ${counts.wisdom} quote(s) are hidden until a person checks them `
+        + 'in the Complete Works and sets verified: true in seed/wisdom.json.');
     await mongoose.disconnect();
   })().catch(async err => {
     console.error('seed failed:', err.message);

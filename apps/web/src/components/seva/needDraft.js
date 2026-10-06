@@ -83,9 +83,10 @@ export function todayISO(date = new Date()) {
 }
 
 // The body of POST /api/needs: exactly the 9 draft keys, plus the consent this screen adds
-// (the community confirmed the read-back, and the coordinator consents)
-export function formToNeed(form, agreedOn = todayISO()) {
+// (the community confirmed the read-back, and the coordinator consents), plus the original words if given
+export function formToNeed(form, agreedOn = todayISO(), original = null) {
   return {
+    ...(original?.text?.trim() ? { original: { text: original.text.trim(), language: original.language } } : {}),
     title: form.title.trim(),
     want: form.want.trim(),
     serveUsWell: form.serveUsWell.trim(),

@@ -15,6 +15,8 @@ import Diary from './pages/Diary';
 import ThenAndNow from './pages/ThenAndNow';
 import PostNeed from './pages/PostNeed';
 import Resources from './pages/Resources';
+import SilentSeva from './pages/SilentSeva';
+import Moment from './pages/Moment';
 
 function RequireLogin() {
   const token = useAuth(s => s.token);
@@ -51,7 +53,11 @@ export const router = createBrowserRouter([
         { path: '/reflect/:commitmentId', element: <Diary /> },
         { path: '/reflect/:commitmentId/then-and-now', element: volunteer(<ThenAndNow />) },
       ],
-    }],
+    },
+    // full screen, no nav: nothing on the phone while she is with them
+    { path: '/my-seva/:commitmentId/silent', element: volunteer(<SilentSeva />) },
+    // the non-attachment moments: declined, closed, finished
+    { path: '/moments/:key/:commitmentId?', element: volunteer(<Moment />) }],
   },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);

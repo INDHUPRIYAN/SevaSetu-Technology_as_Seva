@@ -57,6 +57,9 @@ coordinator.get('/overview', async (req, res) => {
   const pending = await Visit.find({ needId: { $in: needIds }, status: { $in: ['requested', 'visited'] } })
     .sort({ createdAt: -1 }).populate('needId', 'title').populate('volunteerId', 'name');
   const commitments = await Commitment.find({ needId: { $in: needIds } }).sort({ createdAt: -1 });
+  // what volunteers heard, waiting for the coordinator to decide on an "Updated after listening" line
+  const heard = await Visit.find({ needId: { $in: needIds }, heardText: { $nin: [null, ''] }, update: null })
+    .sort({ updatedAt: -1 }).populate('needId').populate('volunteerId', 'name');
 
   ok(res, {
     needs: needs.map(n => ({
@@ -69,10 +72,18 @@ coordinator.get('/overview', async (req, res) => {
       volunteerName: v.volunteerId.name,
       status: v.status,
       heardText: v.heardText,
-      volunteerYes: v.volunteerYes,
-      coordinatorYes: v.coordinatorYes,
+      invitation: v.invitation,
     })),
     commitments: await Promise.all(commitments.map(c => view(c._id))),
+    listeningUpdates: heard.map(v => ({
+      visitId: v._id,
+      volunteerName: v.volunteerId.name,
+      heardText: v.heardText,
+      need: {
+        _id: v.needId._id, title: v.needId.title, want: v.needId.want, serveUsWell: v.needId.serveUsWell,
+        youWillLearn: v.needId.youWillLearn, place: v.needId.place,
+      },
+    })),
   });
 });
 

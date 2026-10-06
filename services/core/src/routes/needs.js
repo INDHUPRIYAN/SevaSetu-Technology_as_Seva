@@ -1,6 +1,6 @@
 // Endpoints 4–7
 const router = require('express').Router();
-const { Need, User, Visit } = require('../models');
+const { Need, User, Visit, Commitment } = require('../models');
 const { me, fail, ok, requireRole, checkId } = require('../lib/http');
 
 function partOfDay(start = '') {
@@ -56,6 +56,13 @@ router.post('/', async (req, res) => {
     throw fail(400, 'Please give your consent to publish');
   if (!b.title || !String(b.title).trim()) throw fail(400, 'Please give the need a title');
 
+  // the words as the community said them, in their language
+  let original = null;
+  if (b.original?.text && String(b.original.text).trim()) {
+    const language = ['en', 'ta', 'hi'].includes(b.original.language) ? b.original.language : 'en';
+    original = { text: String(b.original.text).trim().slice(0, 5000), language };
+  }
+
   const coordinator = await User.findById(me(req).id);
   if (!coordinator?.orgId) throw fail(400, 'This coordinator has no organisation');
 
@@ -71,6 +78,7 @@ router.post('/', async (req, res) => {
     rhythm: b.rhythm,
     weeks: b.weeks || 4,
     place: b.place,
+    original,
     status: 'open',
     consent: { readBack: true, coordinatorConsent: true, agreedOn: b.consent.agreedOn || new Date().toISOString().slice(0, 10) },
   });
@@ -86,6 +94,27 @@ router.post('/:id/visits', async (req, res) => {
     throw fail(409, 'You have already asked to visit this community');
   if (need.status !== 'open') throw fail(409, 'This need is already filled');
   ok(res, await Visit.create({ needId: need._id, volunteerId: me(req).id }), 201);
+});
+
+// 6b. the need ends (a school shuts, an organisation moves): the coordinator closes it. Every active or
+// paused commitment on it is marked finished, as complete and not failed; the volunteer makes no choice.
+router.patch('/:id/close', async (req, res) => {
+  requireRole(req, 'coordinator');
+  const need = await Need.findById(checkId(req.params.id, 'Need'));
+  if (!need) throw fail(404, 'Need not found');
+  if (String(need.coordinatorId) !== me(req).id) throw fail(403, 'Only the coordinator of this need can close it');
+  if (need.status === 'closed') throw fail(409, 'This need is already closed');
+  const reason = String(req.body?.reason || '').trim();
+  if (reason.length > 300) throw fail(400, 'Please keep the reason under 300 characters');
+
+  need.status = 'closed';
+  need.closed = { reason: reason || null, at: new Date() };
+  await need.save();
+  const { modifiedCount } = await Commitment.updateMany(
+    { needId: need._id, status: { $in: ['active', 'paused'] } },
+    { $set: { status: 'finished', lastChoice: 'need-closed', invitation: null, pausedUntil: null } },
+  );
+  ok(res, { _id: need._id, status: need.status, closed: need.closed, commitmentsFinished: modifiedCount });
 });
 
 module.exports = router;

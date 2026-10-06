@@ -34,6 +34,7 @@ module.exports = {
     collegeTablets:  '650000000000000000000061',
     libraryBooks:    '650000000000000000000062',
     eldersChairs:    '650000000000000000000063',
+    schoolTablets:   '650000000000000000000064',     // "We lack 10 tablets" — matches collegeTablets
   },
   circles: {
     main: '650000000000000000000051',

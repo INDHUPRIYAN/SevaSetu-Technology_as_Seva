@@ -2,8 +2,9 @@
 
 Dignity-first technology for meaningful and sustained seva, inspired by Swami Vivekananda.
 
-SevaSetu helps a volunteer find **one** right community need, **listen before committing**, serve the
-same people week after week with a circle beside them, and reflect privately on what they learn. A
+SevaSetu helps a volunteer find **one** right community need, visit **once, only to listen**, and, if the
+community invites them back, serve the same people week after week with a circle beside them and reflect
+privately on what they learn. The ramp is always One visit → Invitation → 4 weeks → Continue. A
 coordinator can speak a need in Tamil, Hindi or English and get a draft need card, which they read
 back to the community before publishing. The full picture is in [PROJECT_PLAN.md](PROJECT_PLAN.md).
 
@@ -11,17 +12,22 @@ back to the community before publishing. The full picture is in [PROJECT_PLAN.md
 
 | For | Screens |
 |---|---|
-| Volunteers | Home, Find a Need (3 questions → at most 3 needs), Need card with "Why?", Listen First (briefing → visit → what I heard → yes/no), Commit, My Seva (Week X of N, "I cannot come" with a note, circle cover, invitation → continue / pause with a return date / finish with a handover), private Seva Diary, Then and Now, Wisdom, Profile |
-| Coordinators | Dashboard (visits to answer, open gaps, week grid, "would the community like them to continue?", invitation, demo time travel), Post a Need (voice or text → AI draft → privacy warnings → read back → community confirms + coordinator consents → publish), Resource Connect (offer or ask for things → suggested match → connect → hand over) |
+| Volunteers | Home, Find a Need (3 questions → at most 3 needs), Need card with "Why?", Listen First (briefing + Listening Guide → one visit → what I heard → *the next word is theirs*), the community's invitation → Commit (sentence, 4 weeks, Sankalpa: "what do you hope to learn here?"), My Seva (Week X of N, "I have arrived" → Silent Seva, "I cannot come" with a note, circle cover, invitation → continue / pause with a return date / finish: "What did they give you?" then the handover), the calm moments when the community says no or a need ends, private Seva Diary (five questions, one on pride), Then and Now (with the community's words), Wisdom with the Teaching Finder, Profile |
+| Coordinators | Dashboard (visits waiting: invite them back in the group's words, or not now; "Updated after listening"; open gaps; week grid; check-in; invitation; "what the group wanted to say" through the Dignity Check; "this need has ended"; demo time travel), Post a Need (voice or text → AI draft → Dignity Check → read back → community confirms + coordinator consents → publish), Resource Connect (offer or ask for things → suggested match → connect → hand over) |
 
 **Wisdom, never invented.** Every quotation is copied verbatim from *The Complete Works of Swami
 Vivekananda*, matched against two online copies, and stored with its volume and piece
-([seed/wisdom-quotes.js](seed/wisdom-quotes.js)). Each "Why?" shows *Verified teaching →
+([seed/wisdom.json](seed/wisdom.json)). Each "Why?" shows *Verified teaching →
 Interpretation → What SevaSetu does*, and teachings appear in context (before a listening visit,
 before committing, after a hard diary day, on an invitation to continue) as *Verified teaching →
 Interpretation → Practice*. Our own words are always labelled as ours: "Feel first, organize
-afterwards", for example, is our paraphrase, because it is not in the Complete Works. A person still
-needs to tick each quote off against a printed volume (`checked: true`); the seed warns until then.
+afterwards", for example, is our paraphrase, because it is not in the Complete Works. The app shows a
+quote only after a person has found it in a printed volume and set `verified: true` (and its `page`)
+in that file. Until then the quote is hidden everywhere, and the "Why?" notes and moments show only
+our own words.
+
+The coordinator screens have an English / தமிழ் toggle ([apps/web/src/i18n/ta.js](apps/web/src/i18n/ta.js) still
+needs a Tamil speaker's review). Teachings, quotations and anything a person wrote are never translated.
 
 Phones get a 430 px layout with a bottom nav. Screens 1024 px and wider get a sidebar, and from
 1280 px the busy pages use two columns.
@@ -37,11 +43,11 @@ services/bridge     :4003  Post a Need drafting (Groq) and speech (Bhashini); no
 seed/               seed-core.js, seed-reflect.js, fixed shared ids
 scripts/            api-test.js (T1–T28), ui-test.js (screen checks in Chrome)
 mono.js             the whole backend in one process (fallback / single-service deploy)
-docs/               CONTRACT.md (service rules), api.http, BHASHINI.md, plans/ (original build plans)
+docs/               CONTRACT.md (service rules), BHASHINI.md, plans/ (original build plans)
 ```
 
 Every endpoint answers `{ data }` or `{ error: { message } }`. The user comes only from the headers
-the gateway sets, never from the request body. Every endpoint is listed, runnable, in [docs/api.http](docs/api.http).
+the gateway sets, never from the request body. Every endpoint is listed, runnable, in [tests.http](tests.http).
 
 ## Run it locally
 
@@ -60,7 +66,7 @@ npm run dev         # all five parts; open http://localhost:5174
 
 The web app runs on **5174** (another local project uses Vite's default 5173).
 
-**AI and voice keys are optional.** Without `GROQ_API_KEY`, Post a Need gives a sample draft card
+**AI and voice keys are optional.** Without `LLM_API_KEY` (a Groq key), Post a Need gives a sample draft card
 to edit. Without the Bhashini keys, a recording adds no words (type instead) and Tamil or Hindi
 words go to Groq untranslated. To check real keys: `npm run check` (add a 16 kHz Tamil `.wav` path after
 `--` to test speech too). Keys live only in `services/bridge/.env`, which git ignores;
@@ -72,8 +78,8 @@ words go to Groq untranslated. To check real keys: `npm run check` (add a 16 kHz
 | `npm run mono` | The whole backend in one process on :8080 (seed reflect into the same database: `MONGO_URI=…/seva_core node seed/seed-reflect.js`) |
 | `npm run seed` | Reseed both databases |
 | `npm test` | Unit and component tests: reflect, bridge, web |
-| `npm run test:api` | Reseed, then API checks T1–T28 and product-rule checks X1–X7 against `GW` (default `http://localhost:8080`) |
-| `npm run test:ui` / `test:ui:desktop` | Reseed, then click through every screen in Chrome at 390 px / 1440 px against `WEB` (default `http://localhost:5174`) |
+| `npm run test:api` | Reseed, then API checks T1–T28 and product-rule checks X1–X21 against `GW` (default `http://localhost:8080`) |
+| `npm run test:ui` / `test:ui:desktop` | Reseed, then click through every screen in Chrome at 390 px / 1440 px against `WEB` (default `http://localhost:5174`; set `GW` too for a deployed site), 33 checks |
 | `npm run build` | Production build of the web app |
 
 The reflect tests start an in-memory MongoDB. To use your installed `mongod` instead of a download,
@@ -102,7 +108,7 @@ The 12-step demo script is in [PROJECT_PLAN.md](PROJECT_PLAN.md#12-the-demo-12-s
 
 ## Rules the code enforces
 
-Listen first (no commitment without both sides saying yes, 409 otherwise) · no hours, points, ranks or streaks ·
+One visit first, and the community speaks first (no commitment without a completed visit and the community's invitation, 409; a volunteer cannot invite, 403) · no hours, points, ranks or streaks ·
 no names, ages, income, caste, religion, health details or photos of the people served · the diary
 is private to its writer, with no AI or scoring on it · AI only drafts; nothing is published until
 the community confirms the read-back and the coordinator consents · identity never comes from the

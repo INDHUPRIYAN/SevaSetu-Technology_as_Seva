@@ -1,12 +1,12 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BookOpen, CircleUser, House, LayoutDashboard, CirclePlus, LogOut, Package, Search, Users } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { Wordmark } from './Brand';
-import { Avatar } from './Bits';
+import { Avatar, Toaster } from './Bits';
 
 const volunteerTabs = [
   { to: '/', label: 'Home', icon: House, end: true },
-  { to: '/opportunities', label: 'Opportunities', icon: Search },
+  { to: '/opportunities', label: 'Needs', icon: Search },
   { to: '/my-seva', label: 'My Seva', icon: Users },
   { to: '/wisdom', label: 'Wisdom', icon: BookOpen },
   { to: '/profile', label: 'Profile', icon: CircleUser },
@@ -25,19 +25,21 @@ const coordinatorTabs = [
 export default function AppShell() {
   const user = useAuth(s => s.user);
   const tabs = user?.role === 'coordinator' ? coordinatorTabs : volunteerTabs;
+  const { pathname } = useLocation();
 
   return (
     <div className="min-h-dvh lg:flex">
       <Sidebar tabs={tabs} user={user} />
 
-      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-cream-100 shadow-[0_0_60px_-20px_rgb(87_58_40_/_0.35)] lg:ml-72 lg:max-w-none lg:shadow-none">
-        <main className="w-full flex-1 px-4 pb-28 lg:mx-auto lg:max-w-6xl lg:px-10 lg:pb-16 lg:pt-8">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-cream-100 lg:ml-72 lg:max-w-none">
+        <main key={pathname} className="w-full flex-1 animate-fade px-4 pt-4 pb-32 lg:mx-auto lg:max-w-6xl lg:px-10 lg:pb-16 lg:pt-8">
           <Outlet />
         </main>
       </div>
+      <Toaster />
 
       <nav
-        className="fixed bottom-0 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-cream-300/80 bg-cream-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="fixed bottom-0 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
         aria-label="Main"
       >
         <ul className="flex">
@@ -47,14 +49,10 @@ export default function AppShell() {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `flex flex-col items-center gap-1 pb-2.5 pt-3 text-[11px] font-medium transition-colors ${isActive ? 'text-saffron-500' : 'text-ink-500 hover:text-ink-800'}`}
+                  `flex flex-col items-center gap-1 pb-2 pt-2 text-[13px] font-medium transition-colors ${isActive ? 'text-saffron-500' : 'text-ink-500 hover:text-ink-800'}`}
               >
-                {({ isActive }) => (
-                  <>
-                    <Icon size={24} strokeWidth={isActive ? 2.4 : 1.8} fill={isActive && Icon === House ? 'currentColor' : 'none'} />
-                    {label}
-                  </>
-                )}
+                <Icon />
+                {label}
               </NavLink>
             </li>
           ))}
@@ -84,19 +82,15 @@ function Sidebar({ tabs, user }) {
                     ? 'bg-saffron-100 text-saffron-700'
                     : 'text-ink-700 hover:bg-cream-200/70 hover:text-ink-900'}`}
               >
-                {({ isActive }) => (
-                  <>
-                    <Icon size={21} strokeWidth={isActive ? 2.4 : 1.9} />
-                    {label}
-                  </>
-                )}
+                <Icon />
+                {label}
               </NavLink>
             </li>
           ))}
         </ul>
       </nav>
 
-      <div className="rounded-3xl bg-cream-100 p-3 ring-1 ring-cream-300/70">
+      <div className="rounded-2xl bg-cream-100 p-3 ring-1 ring-cream-300/70">
         <div className="flex items-center gap-3">
           <Avatar name={user?.name} />
           <div className="min-w-0 flex-1">

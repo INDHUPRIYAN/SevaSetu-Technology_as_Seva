@@ -21,10 +21,10 @@ const users = [
 ];
 
 const orgs = [
-  { _id: ids.orgs.govtSchool, name: 'Government School', place: 'Government School, Kanchipuram', city: 'Kanchipuram', distanceKm: 3, verified: true },
-  { _id: ids.orgs.org2, name: 'Anbu Community Library', place: 'Anbu Community Library, Tambaram', city: 'Chennai', distanceKm: 5, verified: true },
-  { _id: ids.orgs.org3, name: 'Sunrise Elders Home', place: 'Sunrise Elders Home, Guduvanchery', city: 'Chennai', distanceKm: 8, verified: true },
-  { _id: ids.orgs.college, name: 'Sri Ramana Arts College', place: 'Sri Ramana Arts College, Kanchipuram', city: 'Kanchipuram', distanceKm: 6, verified: true },
+  { _id: ids.orgs.govtSchool, name: 'Government School', place: 'Government School, Kanchipuram', city: 'Kanchipuram', distanceKm: 3, verified: true, location: { lat: 12.8342, lng: 79.7036 } },
+  { _id: ids.orgs.org2, name: 'Anbu Community Library', place: 'Anbu Community Library, Tambaram', city: 'Chennai', distanceKm: 5, verified: true, location: { lat: 12.9249, lng: 80.1 } },
+  { _id: ids.orgs.org3, name: 'Sunrise Elders Home', place: 'Sunrise Elders Home, Guduvanchery', city: 'Chennai', distanceKm: 8, verified: true, location: { lat: 12.8458, lng: 80.06 } },
+  { _id: ids.orgs.college, name: 'Sri Ramana Arts College', place: 'Sri Ramana Arts College, Kanchipuram', city: 'Kanchipuram', distanceKm: 6, verified: true, location: { lat: 12.8185, lng: 79.6947 } },
 ];
 
 const card = (id, orgId, fields) => ({
@@ -37,6 +37,9 @@ const card = (id, orgId, fields) => ({
   ...fields,
 });
 
+// approved by the coordinator after the seeded volunteer's listening visit; shows on the need card
+const AFTER_LISTENING = 'The students would like to read aloud to you first, and be corrected less.';
+
 const needs = [
   card(ids.needs.englishReading, ids.orgs.govtSchool, {
     title: 'English Reading Support',
@@ -47,7 +50,14 @@ const needs = [
     interestTags: ['teaching', 'reading'],
     rhythm: { day: 'Saturday', start: '10:00', end: '12:00' },
     place: 'Government School, Kanchipuram',
+    // the coordinator's words as she said them (invented for the demo), kept beside the English card
+    original: {
+      language: 'ta',
+      text: 'ஆறு முதல் எட்டாம் வகுப்பு வரை படிக்கும் பன்னிரண்டு மாணவர்கள் ஆங்கிலத்தை சத்தமாக, தன்னம்பிக்கையுடன் '
+        + 'வாசிக்கக் கற்றுக்கொள்ள விரும்புகிறார்கள். சனிக்கிழமை காலை பத்து மணி முதல் பன்னிரண்டு மணி வரை, காஞ்சிபுரம் அரசுப் பள்ளியில்.',
+    },
     status: 'filled',
+    updates: [{ text: AFTER_LISTENING, at: daysAgo(20), visitId: ids.visits.seeded }],
   }),
   card(ids.needs.need2, ids.orgs.govtSchool, {
     title: 'Spoken English Circle',
@@ -58,6 +68,11 @@ const needs = [
     interestTags: ['teaching', 'conversation'],
     rhythm: { day: 'Saturday', start: '09:00', end: '10:30' },
     place: 'Government School, Kanchipuram',
+    original: {
+      language: 'ta',
+      text: 'எங்கள் ஒன்பதாம் வகுப்பு மாணவர்களுக்கு ஆங்கிலம் படிக்கத் தெரியும், ஆனால் பேசத் தயங்குகிறார்கள். '
+        + 'சனிக்கிழமை காலை வகுப்புக்கு முன், சிறு குழுக்களாகப் பேசிப் பழக விரும்புகிறார்கள்.',
+    },
   }),
   card(ids.needs.need3, ids.orgs.org2, {
     title: 'Reading Corner Helpers',
@@ -115,10 +130,10 @@ const visits = [{
   _id: ids.visits.seeded,
   needId: ids.needs.englishReading,
   volunteerId: ids.users.seededVolunteer,
-  status: 'agreed',
+  status: 'invited',
   heardText: 'The children wanted to read to me, not be read to.',
-  volunteerYes: true,
-  coordinatorYes: true,
+  invitation: { text: 'The children asked when you are coming back.', sentAt: daysAgo(20) },
+  update: { status: 'approved', text: AFTER_LISTENING, at: daysAgo(20) },
   createdAt: daysAgo(21),
 }];
 
@@ -132,7 +147,7 @@ const commitments = [{
   currentWeek: 2,
   sessions: [
     { week: 1, status: 'served' },
-    { week: 2, status: 'served' },
+    { week: 2, status: 'upcoming' },                 // this week: "I have arrived" → Silent Seva → served
     { week: 3, status: 'upcoming' },
     { week: 4, status: 'upcoming' },
   ],
@@ -141,12 +156,14 @@ const commitments = [{
   createdAt: daysAgo(14),
 }];
 
-// Resource Connect: things other organisations can offer (demo: the school asks for 10 tablets)
+// Resource Connect, organisation to organisation: "We lack 10 tablets" (the school) and the college's
+// matching "We have 10 tablets to lend", plus two more. Things, space and skills only, never money.
 const inDays = n => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const resources = [
-  { _id: ids.resources.collegeTablets, orgId: ids.orgs.college, kind: 'offer', type: 'tablets', quantity: 10, availableFrom: inDays(7), note: 'Used for one year, charged and reset. Cases included.' },
-  { _id: ids.resources.libraryBooks, orgId: ids.orgs.org2, kind: 'offer', type: 'storybooks', quantity: 30, availableFrom: inDays(3), note: 'Tamil and English, for ages 8 to 12.' },
-  { _id: ids.resources.eldersChairs, orgId: ids.orgs.org3, kind: 'request', type: 'folding chairs', quantity: 12, availableFrom: inDays(14), note: 'For the garden mornings.' },
+  { _id: ids.resources.schoolTablets, orgId: ids.orgs.govtSchool, kind: 'request', category: 'equipment', mode: 'lend', type: 'tablets', quantity: 10, availableFrom: inDays(10), note: 'For the reading group, Saturday mornings.' },
+  { _id: ids.resources.collegeTablets, orgId: ids.orgs.college, kind: 'offer', category: 'equipment', mode: 'lend', type: 'tablets', quantity: 10, availableFrom: inDays(7), note: 'Used for one year, charged and reset. Cases included.' },
+  { _id: ids.resources.libraryBooks, orgId: ids.orgs.org2, kind: 'offer', category: 'materials', mode: 'share', type: 'storybooks', quantity: 30, availableFrom: inDays(3), note: 'Tamil and English, for ages 8 to 12.' },
+  { _id: ids.resources.eldersChairs, orgId: ids.orgs.org3, kind: 'request', category: 'equipment', mode: 'lend', type: 'folding chairs', quantity: 12, availableFrom: inDays(14), note: 'For the garden mornings.' },
 ];
 
 const circles = [{

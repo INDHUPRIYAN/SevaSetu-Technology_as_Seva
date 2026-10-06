@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { BookOpen, CalendarDays, ChevronRight, Ear, Flag, MapPin, Mail, Pause, Repeat } from 'lucide-react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
+import { BookOpen, CalendarDays, ChevronRight, Ear, Flag, Footprints, Handshake, HeartHandshake, MapPin, Mail, Pause, Repeat } from 'lucide-react';
 import { api } from '../lib/api';
+import { toast } from '../lib/toast';
 import { useLoad } from '../lib/useLoad';
 import { firstName, longDate, rhythm, shortDate, tomorrowISO } from '../lib/format';
 import { Avatar, EmptyState, ErrorNote, Loading, PageHeader, SectionTitle, StatusPill, TextArea } from '../components/ui/Bits';
@@ -10,6 +11,7 @@ import Card from '../components/ui/Card';
 import WeekStrip from '../components/WeekStrip';
 import WhyLink from '../components/seva/WhyLink';
 import WisdomMoment from '../components/seva/WisdomMoment';
+import { seenMoment } from '../lib/seenMoments';
 
 // Phone and small laptops: one column. Wide screens (xl): the commitment and its weeks on the left; the invitation,
 // diary, circle and visits on the right. The invitation and diary are placed in both
@@ -25,7 +27,7 @@ export default function MySeva() {
 
   const list = commitments.data || [];
   const c = list.find(x => x._id === selected) || list.find(x => x.status === 'active') || list[0];
-  const listening = (visits.data || []).filter(v => v.status !== 'agreed' || !list.some(x => x.visitId === v._id));
+  const listening = (visits.data || []).filter(v => v.status !== 'invited' || !list.some(x => x.visitId === v._id));
 
   const loaded = !commitments.loading && !circle.loading && !visits.loading;
   useEffect(() => {
@@ -37,6 +39,7 @@ export default function MySeva() {
     setError(null);
     try {
       await fn();
+      toast();
       await Promise.all([commitments.reload({ quiet: true }), circle.reload({ quiet: true })]);
     } catch (e) {
       setError(e);
@@ -46,6 +49,10 @@ export default function MySeva() {
   }
 
   if (!loaded) return <><PageHeader title="My Seva" back={false} /><Loading /></>;
+
+  // a need that ended mid-commitment: show the "closed" moment once, then this page as usual
+  const closed = list.find(x => x.lastChoice === 'need-closed' && !seenMoment(`closed-${x._id}`));
+  if (closed) return <Navigate to={`/moments/closed/${closed._id}`} replace />;
 
   const choose = (choice, extra = {}) => act(() => api.patch(`/api/commitments/${c._id}/continue`, { choice, ...extra }));
 
@@ -72,7 +79,7 @@ export default function MySeva() {
         <div className="space-y-6">
           {!c ? (
             <EmptyState title="No seva yet" action={<Button to="/opportunities" size="sm">Find a need</Button>}>
-              Find a need, visit to listen, and when you both say yes, your weeks will show here.
+              Find a need and visit once to listen. If the community invites you back, your weeks will show here.
             </EmptyState>
           ) : (
             <>
@@ -98,10 +105,10 @@ export default function MySeva() {
 function CommitmentCard({ c, busy, act, onChoose }) {
   const current = c.sessions.find(s => s.week === c.currentWeek);
   return (
-    <Card className="p-5 lg:p-7">
+    <Card className="p-4 lg:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-serif text-[22px] font-semibold leading-snug text-ink-900 lg:text-[28px]">{c.need.title}</h2>
+          <h2 className="font-serif text-[24px] font-semibold leading-snug text-ink-900 lg:text-[24px]">{c.need.title}</h2>
           <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-700 lg:text-[15px]"><MapPin size={15} className="mt-0.5 shrink-0 text-ink-500" />{c.need.place}</p>
           <p className="mt-0.5 flex items-center gap-1.5 text-sm text-ink-700 lg:text-[15px]"><CalendarDays size={15} className="text-ink-500" />{rhythm(c.need.rhythm)}</p>
         </div>
@@ -115,85 +122,145 @@ function CommitmentCard({ c, busy, act, onChoose }) {
         <WhyLink rule="no-hours" />
       </div>
       <WeekStrip sessions={c.sessions} currentWeek={c.currentWeek} className="mt-3" />
+      <FourSteps c={c} />
 
       {c.sentence && (
         <p className="mt-5 border-l-2 border-saffron-300 pl-3 font-serif italic leading-relaxed text-ink-700 lg:text-lg">“{c.sentence}”</p>
       )}
 
-      {c.status === 'active' && current?.status === 'upcoming' && <AbsenceForm c={c} busy={busy} act={act} />}
-      {current?.status === 'gap' && (
-        <p className="mt-5 rounded-2xl bg-cream-100 px-4 py-3 text-sm text-ink-700">
-          You told your circle you cannot come this week. Someone can cover for you.
-          {current.note && <span className="mt-1 block italic">Your note: “{current.note}”</span>}
-        </p>
+      {c.status === 'active' && current?.status === 'upcoming' && (
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <Button to={`/my-seva/${c._id}/silent`} block><Footprints size={18} /> I have arrived</Button>
+          <Button variant="outline" block disabled={busy}
+            onClick={() => act(() => api.post(`/api/commitments/${c._id}/absence`, { week: c.currentWeek }))}>
+            I cannot come this week
+          </Button>
+        </div>
       )}
+      {c.status === 'active' && current?.status === 'served' && (
+        <p className="mt-5 rounded-2xl bg-cream-100 px-4 py-3 text-sm text-ink-700">This week is served. Thank you.</p>
+      )}
+      {current?.status === 'gap' && <AbsenceNote c={c} week={current} busy={busy} act={act} />}
       {c.status === 'paused' && (
         <p className="mt-5 rounded-2xl bg-cream-100 px-4 py-3 text-sm text-ink-700">
           Paused. You plan to come back on <b>{longDate(c.pausedUntil)}</b>.
         </p>
       )}
-      {c.status === 'finished' && (
+      {c.status === 'finished' && c.lastChoice === 'community-ended' && (
+        <p className="mt-5 rounded-2xl bg-cream-100 px-4 py-3 text-sm text-ink-700">
+          At their check-in, the community chose to end this arrangement. Thank you for every week you kept.
+        </p>
+      )}
+      {c.status === 'finished' && c.lastChoice === 'need-closed' && (
+        <p className="mt-5 rounded-2xl bg-cream-100 px-4 py-3 text-sm text-ink-700">
+          This seva is complete: the need has ended. Thank you for every week you kept.
+          {' '}<Link to={`/moments/closed/${c._id}`} className="font-medium text-saffron-700 underline">Read the note</Link>
+        </p>
+      )}
+      {c.status === 'finished' && !['community-ended', 'need-closed'].includes(c.lastChoice) && (
         <p className="mt-5 rounded-2xl bg-cream-100 px-4 py-3 text-sm text-ink-700">
           Finished. Thank you for every week you kept. Your handover note is with your circle and the next volunteer.
         </p>
       )}
+      {c.status === 'finished' && c.communityWords && (
+        <figure className="mt-3 rounded-2xl bg-saffron-50 px-4 py-3" data-testid="community-words">
+          <figcaption className="text-xs font-semibold uppercase tracking-wider text-saffron-700">The community's words</figcaption>
+          <blockquote lang={c.communityWords.language} className="mt-1 font-serif text-[17px] italic leading-snug text-ink-900">“{c.communityWords.text}”</blockquote>
+          <p className="mt-1 text-xs text-ink-500">Relayed by their coordinator, as it was said.</p>
+        </figure>
+      )}
       {c.status === 'active' && !c.invitation && (
         <details className="mt-5 rounded-2xl ring-1 ring-cream-300 [&_summary::-webkit-details-marker]:hidden">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-ink-700">Need to step away?</summary>
-          <div className="px-4 pb-4"><StepAway busy={busy} onChoose={onChoose} /></div>
+          <div className="px-4 pb-4"><StepAway c={c} busy={busy} onChoose={onChoose} /></div>
         </details>
       )}
     </Card>
   );
 }
 
-// "I cannot come this week", with an optional note for whoever covers
-function AbsenceForm({ c, busy, act }) {
-  const [open, setOpen] = useState(false);
-  const [note, setNote] = useState('');
-  if (!open) {
-    return (
-      <Button variant="soft" block className="mt-5 lg:w-auto" disabled={busy} onClick={() => setOpen(true)}>
-        I cannot come this week
-      </Button>
-    );
-  }
+// After "I cannot come this week" (one tap, no penalty): an optional note for whoever covers
+function AbsenceNote({ c, week, busy, act }) {
+  const [note, setNote] = useState(week.note || '');
   return (
     <div className="mt-5 rounded-2xl bg-cream-100 p-4">
-      <TextArea
-        label="A note for whoever covers (optional)"
-        rows={3}
-        maxLength={300}
-        placeholder="Where we stopped, what the students are reading…"
-        value={note}
-        onChange={e => setNote(e.target.value)}
-      />
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" disabled={busy}
-          onClick={() => act(() => api.post(`/api/commitments/${c._id}/absence`, { week: c.currentWeek, note }))}>
-          Tell my circle
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      <p className="text-sm text-ink-700">Your circle knows you cannot come this week. Someone can cover for you.</p>
+      <div className="mt-3">
+        <TextArea
+          label="A note for whoever covers (optional)"
+          rows={3}
+          maxLength={300}
+          placeholder="Where we stopped, what the students are reading…"
+          value={note}
+          onChange={e => setNote(e.target.value)}
+        />
       </div>
+      <Button size="sm" variant="outline" className="mt-3" disabled={busy || !note.trim() || note.trim() === week.note}
+        onClick={() => act(() => api.post(`/api/commitments/${c._id}/absence`, { week: week.week, note }))}>
+        Save note
+      </Button>
     </div>
   );
 }
 
-// Pause (with the date you plan to return) or finish (with a handover for the next volunteer)
-function StepAway({ busy, onChoose }) {
+// The four steps of the journey, named after the four yogas. Where she is now is marked; nothing is scored.
+const STEPS = [
+  { key: 'listen', label: 'Listen', yoga: 'Bhakti', icon: Ear },
+  { key: 'commit', label: 'Commit', yoga: 'Raja', icon: Handshake },
+  { key: 'serve', label: 'Serve', yoga: 'Karma', icon: HeartHandshake },
+  { key: 'reflect', label: 'Reflect', yoga: 'Jnana', icon: BookOpen },
+];
+
+function FourSteps({ c }) {
+  return (
+    <ol aria-label="Your four steps" className="mt-5 grid grid-cols-4 gap-2">
+      {STEPS.map(s => {
+        const now = s.key === 'serve' && c.status === 'active';
+        const body = (
+          <>
+            <s.icon size={18} className={now ? 'text-saffron-600' : 'text-ink-500'} />
+            <span className="mt-1 text-[13px] font-semibold text-ink-900">{s.label}</span>
+            <span className="font-serif text-[13px] italic text-ink-500">{s.yoga}</span>
+          </>
+        );
+        const cls = `flex flex-col items-center rounded-2xl px-1 py-2 text-center ${now ? 'bg-saffron-50 ring-1 ring-saffron-200' : 'bg-cream-100'}`;
+        return (
+          <li key={s.key} aria-current={now ? 'step' : undefined}>
+            {s.key === 'reflect'
+              ? <Link to={`/reflect/${c._id}`} className={`${cls} hover:ring-1 hover:ring-saffron-200`}>{body}</Link>
+              : <div className={cls}>{body}</div>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export const HANDOVER = [
+  ['now', 'Where the group is now', 'They are on chapter 3 of the reader…'],
+  ['works', 'What works well with them', 'Reading aloud in pairs, and letting them choose the story…'],
+  ['know', 'What to know before you begin', 'Arrive a few minutes early; the room opens at 10…'],
+];
+
+// Pause (with the date you plan to return) or finish. Finishing is its own full screen (the "finished"
+// moment): first what they gave you, then the handover for the next volunteer.
+// With an invitation, Continue sits beside them as one of three equal choices.
+function StepAway({ c, busy, onChoose, withContinue = false }) {
   const [mode, setMode] = useState(null);
   const [returnDate, setReturnDate] = useState('');
-  const [handover, setHandover] = useState('');
 
   if (!mode) {
     return (
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" disabled={busy} onClick={() => setMode('pause')}><Pause size={16} /> Pause</Button>
-        <Button variant="outline" disabled={busy} onClick={() => setMode('finish')}><Flag size={16} /> Finish</Button>
+      <div className={`grid gap-2 ${withContinue ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        {withContinue && (
+          <Button variant="outline" className="px-2" disabled={busy} onClick={() => onChoose('continue')}><Repeat /> Continue</Button>
+        )}
+        <Button variant="outline" className="px-2" disabled={busy} onClick={() => setMode('pause')}><Pause /> Pause</Button>
+        <Button variant="outline" className="px-2" disabled={busy} to={`/moments/finished/${c._id}`}><Flag /> Finish</Button>
       </div>
     );
   }
-  if (mode === 'pause') {
+  {
     return (
       <div className="space-y-3">
         <label className="block">
@@ -207,29 +274,12 @@ function StepAway({ busy, onChoose }) {
           />
         </label>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" disabled={busy || !returnDate} onClick={() => onChoose('pause', { returnDate })}>Pause until then</Button>
+          <Button size="sm" variant="secondary" disabled={busy || !returnDate} onClick={() => onChoose('pause', { returnDate })}>Pause until then</Button>
           <Button size="sm" variant="ghost" onClick={() => setMode(null)}>Back</Button>
         </div>
       </div>
     );
   }
-  return (
-    <div className="space-y-3">
-      <TextArea
-        label="A handover for the next volunteer"
-        hint="What should they know to begin well? Please do not name anyone you serve."
-        rows={4}
-        maxLength={1000}
-        placeholder="The students are on chapter 3. They love reading aloud in pairs…"
-        value={handover}
-        onChange={e => setHandover(e.target.value)}
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={busy || !handover.trim()} onClick={() => onChoose('finish', { handover })}>Finish and hand over</Button>
-        <Button size="sm" variant="ghost" onClick={() => setMode(null)}>Back</Button>
-      </div>
-    </div>
-  );
 }
 
 function DiaryLink({ c }) {
@@ -290,7 +340,7 @@ function Circle({ circle, busy, act }) {
               {g.note && (
                 <p className="mt-2 text-sm text-ink-700"><span className="font-semibold">Where they stopped: </span><span className="italic">“{g.note}”</span></p>
               )}
-              <Button size="sm" className="mt-3" disabled={busy}
+              <Button size="sm" variant="secondary" className="mt-3" disabled={busy}
                 onClick={() => act(() => api.post(`/api/commitments/${g.commitmentId}/cover`, { week: g.week }))}>
                 I will cover
               </Button>
@@ -341,14 +391,14 @@ function Listening({ visits }) {
 
 function Invitation({ c, busy, onChoose }) {
   return (
-    <Card className="animate-rise overflow-hidden bg-gradient-to-br from-saffron-50 to-cream-50 p-5 ring-saffron-200 lg:p-6">
+    <Card className="overflow-hidden p-4 lg:p-6">
       <p className="flex items-center gap-2 text-sm font-semibold text-saffron-600"><Mail size={16} /> An invitation from the community</p>
       <p className="mt-3 font-serif text-xl italic leading-snug text-ink-900">“{c.invitation.text}”</p>
       <p className="mt-2 text-xs text-ink-500">Sent {shortDate(c.invitation.sentAt)}</p>
       <WisdomMoment moment="continue" className="mt-4" />
-      <div className="mt-5 space-y-2">
-        <Button block disabled={busy} onClick={() => onChoose('continue')}><Repeat size={18} /> Continue for 4 more weeks</Button>
-        <StepAway busy={busy} onChoose={onChoose} />
+      <p className="mt-4 text-[13px] text-ink-500">Continue for 4 more weeks, pause, or finish with a handover. Each is a good answer.</p>
+      <div className="mt-3">
+        <StepAway c={c} busy={busy} onChoose={onChoose} withContinue />
       </div>
     </Card>
   );

@@ -1,17 +1,41 @@
 // /reflect/:commitmentId/then-and-now — the first entry beside the latest (endpoint 24).
-// Side by side on a wide screen, stacked on a phone. No number, score or chart; just her words.
+// Her sealed Sankalpa above them (endpoint 24c), what they gave her (24e) and, once the seva has finished,
+// the community's words relayed by the coordinator (core). Side by side on a wide screen, stacked on a phone.
+// No number, score or chart; just her words, and theirs.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
-import { Pen } from '../components/seva/icons';
+import { Lock, Pen } from '../components/seva/icons';
+
+function SankalpaCard({ text }) {
+  return (
+    <figure className="mt-5 rounded-2xl border border-line bg-surface px-5 py-4 text-center @2xl:px-8 @2xl:py-6">
+      <figcaption className="flex items-center justify-center gap-1.5 text-sm font-semibold tracking-wide text-ember uppercase">
+        <Lock className="size-4" /> Your Sankalpa
+      </figcaption>
+      <blockquote className="mt-2 font-serif text-xl leading-snug text-ink italic break-words @2xl:text-2xl">“{text}”</blockquote>
+    </figure>
+  );
+}
+
+// one short labelled quotation: what they gave her (her words), or the community's words (theirs, as said)
+export function VoiceCard({ label, text, lang, children, testId }) {
+  return (
+    <figure className="mt-4 rounded-2xl border border-line bg-surface px-5 py-4 @2xl:px-8 @2xl:py-5" data-testid={testId}>
+      <figcaption className="text-sm font-semibold tracking-wide text-ember uppercase">{label}</figcaption>
+      <blockquote lang={lang} className="mt-2 font-serif text-lg leading-snug text-ink italic break-words @2xl:text-xl">“{text}”</blockquote>
+      {children}
+    </figure>
+  );
+}
 
 function EntryCard({ label, entry, accent }) {
   return (
-    <Card className={`flex h-full flex-col p-5 @2xl:p-6 ${accent ? 'bg-linear-to-b from-peach-soft to-surface' : ''}`}>
-      <h2 className="text-sm font-semibold tracking-wide text-ember uppercase">{label} — Week {entry.week}</h2>
+    <Card className={`flex h-full flex-col p-4 @2xl:p-6 ${accent ? 'bg-white' : ''}`}>
+      <h2 className="text-sm font-semibold tracking-wide text-ember uppercase">{label}</h2>
       {entry.question?.text && <p className="mt-2 text-base text-ink-soft">{entry.question.text}</p>}
       <blockquote className="mt-3 font-serif text-xl leading-snug whitespace-pre-line text-ink break-words @2xl:text-2xl">
         “{entry.text}”
@@ -28,8 +52,16 @@ export default function ThenAndNow() {
   useEffect(() => {
     let alive = true;
     setState({ status: 'loading' });
-    api.get('/api/reflect/then-and-now', { params: { commitmentId } })
-      .then(data => alive && setState({ status: 'ready', first: data?.first || null, latest: data?.latest || null }))
+    Promise.all([
+      api.get('/api/reflect/then-and-now', { params: { commitmentId } }),
+      api.get('/api/reflect/sankalpa', { params: { commitmentId } }).catch(() => null),   // her words still show without it
+      api.get('/api/reflect/received', { params: { commitmentId } }).catch(() => null),
+      api.get(`/api/commitments/${commitmentId}`).catch(() => null),                        // for the community's words
+    ])
+      .then(([data, sankalpa, received, commitment]) => alive && setState({
+        status: 'ready', first: data?.first || null, latest: data?.latest || null, sankalpa: sankalpa?.text || null,
+        received: received?.text || null, communityWords: commitment?.communityWords || null,
+      }))
       .catch(() => alive && setState({ status: 'error' }));
     return () => { alive = false; };
   }, [commitmentId, attempt]);
@@ -43,16 +75,24 @@ export default function ThenAndNow() {
       {state.status === 'loading' && (
         <div className="mt-5 grid gap-4 @2xl:grid-cols-2" aria-busy="true">
           <p className="sr-only" aria-live="polite">Opening your entries…</p>
-          <div className="h-48 animate-pulse rounded-3xl bg-peach-soft" />
-          <div className="h-48 animate-pulse rounded-3xl bg-peach-soft" />
+          <div className="h-48 animate-pulse rounded-2xl bg-peach-soft" />
+          <div className="h-48 animate-pulse rounded-2xl bg-peach-soft" />
         </div>
       )}
 
       {state.status === 'error' && (
-        <Card className="mt-5 p-5" role="alert">
+        <Card className="mt-5 p-4" role="alert">
           <p className="text-base text-ink">We could not open your entries just now.</p>
           <Button variant="secondary" className="mt-4" onClick={() => setAttempt(n => n + 1)}>Try again</Button>
         </Card>
+      )}
+
+      {state.status === 'ready' && state.sankalpa && <SankalpaCard text={state.sankalpa} />}
+      {state.status === 'ready' && state.received && <VoiceCard label="What they gave you" text={state.received} testId="received" />}
+      {state.status === 'ready' && state.communityWords && (
+        <VoiceCard label="The community's words" text={state.communityWords.text} lang={state.communityWords.language} testId="community-words">
+          <p className="mt-2 text-xs text-ink-soft">Relayed by their coordinator, as it was said.</p>
+        </VoiceCard>
       )}
 
       {state.status === 'ready' && !state.first && (
@@ -65,7 +105,7 @@ export default function ThenAndNow() {
               will sit beside them.
             </p>
           </div>
-          <Link to={diaryLink} className="inline-flex min-h-12 items-center rounded-full bg-saffron-strong px-6 font-semibold text-white shadow-pill hover:bg-saffron-deep">
+          <Link to={diaryLink} className="inline-flex min-h-12 items-center rounded-full bg-saffron-strong px-6 font-semibold text-white hover:bg-saffron-deep">
             Open your diary
           </Link>
         </Card>
@@ -77,7 +117,7 @@ export default function ThenAndNow() {
           {state.latest ? (
             <EntryCard label="Now" entry={state.latest} accent />
           ) : (
-            <Card className="flex h-full flex-col justify-center border-dashed p-5 @2xl:p-6">
+            <Card className="flex h-full flex-col justify-center border-dashed p-4 @2xl:p-6">
               <h2 className="text-sm font-semibold tracking-wide text-ember uppercase">Now</h2>
               <p className="mt-2 text-base text-ink-soft">
                 Write again in a coming week, and your newest words will appear here beside these.
@@ -85,15 +125,6 @@ export default function ThenAndNow() {
             </Card>
           )}
         </div>
-      )}
-
-      {state.status === 'ready' && (
-        <figure className="mt-8 text-center">
-          <blockquote className="font-serif text-2xl leading-snug text-ink italic @2xl:text-3xl">
-            “They alone live who live for others.”
-          </blockquote>
-          <figcaption className="mt-2 text-sm text-ink-soft">— Swami Vivekananda</figcaption>
-        </figure>
       )}
     </div>
   );

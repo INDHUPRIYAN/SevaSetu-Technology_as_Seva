@@ -2,6 +2,7 @@
 // Set MONGOMS_SYSTEM_BINARY to a local mongod to skip the one-time binary download.
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const Question = require('../src/models/Question');
+const Wisdom = require('../src/models/Wisdom');
 const { seedReflect, ids } = require('../../../seed/seed-reflect');
 
 const mongoose = Question.base;
@@ -14,6 +15,9 @@ async function startDb() {
     await server.stop();
   };
 }
+
+// Stand-in for a person ticking every quote off in print, so the wisdom routes have something to show
+const verifyAllWisdom = () => Wisdom.updateMany({}, { verified: true });
 
 // The headers the gateway sets after checking a token
 const as = (id, role = 'volunteer') => ({ 'x-user-id': id, 'x-user-role': role });
@@ -36,4 +40,4 @@ function forbiddenKeysIn(value, found = []) {
   return found;
 }
 
-module.exports = { startDb, seedReflect, as, VOL, VOL2, NEW_VOL, COORD, X, ids, forbiddenKeysIn };
+module.exports = { startDb, seedReflect, verifyAllWisdom, as, VOL, VOL2, NEW_VOL, COORD, X, ids, forbiddenKeysIn };

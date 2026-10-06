@@ -10,7 +10,7 @@ export function Wordmark({ size = 'md' }) {
     <div className="flex shrink-0 items-center gap-2.5">
       <Lotus className={big ? 'h-16 w-16' : 'h-12 w-12'} />
       <div className="whitespace-nowrap leading-none">
-        <div className={`font-serif font-bold tracking-tight ${big ? 'text-[38px]' : 'text-[30px]'}`}>
+        <div className={`font-serif font-bold tracking-tight ${big ? 'text-[24px]' : 'text-[24px]'}`}>
           <span className="text-saffron-600">Seva</span><span className="text-ink-900">Setu</span>
         </div>
         <div className={`mt-1 text-ink-700 ${big ? 'text-base' : 'text-[13px]'}`}>Serve • Learn • Grow</div>

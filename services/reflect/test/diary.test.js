@@ -85,12 +85,13 @@ describe('21. GET /api/reflect/question', () => {
     assert.ok(q._id);
   });
 
-  it('R4: weeks 1–4 give 4 different questions; week 5 is week 1 again', async () => {
+  it('R4: weeks 1–5 give 5 different questions; week 6 is week 1 again; week 5 is the humility check', async () => {
     const qs = [];
-    for (const week of [1, 2, 3, 4, 5]) qs.push(await questionFor(week));
-    assert.equal(new Set(qs.slice(0, 4).map(q => q.text)).size, 4);
-    assert.equal(qs[4].text, qs[0].text);
-    assert.deepEqual(qs.map(q => q.theme), ['patience', 'listening', 'effort', 'received', 'patience']);
+    for (const week of [1, 2, 3, 4, 5, 6]) qs.push(await questionFor(week));
+    assert.equal(new Set(qs.slice(0, 5).map(q => q.text)).size, 5);
+    assert.equal(qs[5].text, qs[0].text);
+    assert.deepEqual(qs.slice(0, 5).map(q => q.theme), ['patience', 'listening', 'effort', 'received', 'pride']);
+    assert.equal(qs[4].text, 'Was there a moment this week I felt I knew better than them?');
   });
 
   it('R5: no week, or a week that is not a whole number from 1, gives 400', async () => {
@@ -230,5 +231,71 @@ describe('R19: nothing grades the diary', () => {
       (await saveWeek2()).body,
     ];
     assert.deepEqual(forbiddenKeysIn(bodies), []);
+  });
+});
+
+describe('24b–c. the sealed Sankalpa', () => {
+  const sankalpa = (headers, commitmentId = X) =>
+    request(app).get('/api/reflect/sankalpa').query({ commitmentId }).set(headers);
+  const seal = (headers, body) => request(app).post('/api/reflect/sankalpa').set(headers).send(body);
+  const NEW_C = '650000000000000000000099';
+
+  it('the seeded volunteer reads back his own sealed line', async () => {
+    const res = await sankalpa(VOL);
+    assert.equal(res.status, 200);
+    assert.match(res.body.data.text, /find their words/);
+    assert.ok(res.body.data.sealedAt);
+  });
+
+  it('nobody else can read it: another volunteer and the coordinator get null', async () => {
+    for (const headers of [VOL2, COORD]) assert.equal((await sankalpa(headers)).body.data, null);
+  });
+
+  it('sealing works once; a second write is refused with 409 and the first line stays', async () => {
+    assert.equal((await seal(NEW_VOL, { commitmentId: NEW_C, text: 'To learn to listen.' })).status, 201);
+    assert.equal((await seal(NEW_VOL, { commitmentId: NEW_C, text: 'Something else' })).status, 409);
+    assert.equal((await sankalpa(NEW_VOL, NEW_C)).body.data.text, 'To learn to listen.');
+  });
+
+  it('a userId in the body is ignored; it is sealed under the caller', async () => {
+    await seal(VOL2, { commitmentId: NEW_C, userId: ids.users.newVolunteer, text: 'Mine, not hers.' });
+    assert.equal((await sankalpa(NEW_VOL, NEW_C)).body.data, null);
+    assert.equal((await sankalpa(VOL2, NEW_C)).body.data.text, 'Mine, not hers.');
+  });
+
+  it('empty text, missing commitmentId or more than one line of text gives 400', async () => {
+    assert.equal((await seal(NEW_VOL, { commitmentId: NEW_C, text: '  ' })).status, 400);
+    assert.equal((await seal(NEW_VOL, { text: 'x' })).status, 400);
+    assert.equal((await seal(NEW_VOL, { commitmentId: NEW_C, text: 'x'.repeat(301) })).status, 400);
+  });
+});
+
+describe('24f. GET /api/reflect/my-seva — across commitments, owner only', () => {
+  const mySeva = headers => request(app).get('/api/reflect/my-seva').set(headers);
+  const OTHER_C = '650000000000000000000098';
+
+  it('the owner sees the first entry ever beside the latest, across commitments, and every Sankalpa in order', async () => {
+    await saveWeek2();                                                     // a later entry on the seeded commitment
+    const q = await questionFor(1);
+    await request(app).post('/api/reflect/entries').set(VOL)
+      .send({ commitmentId: OTHER_C, week: 1, questionId: q._id, text: 'A new place, the same waiting.', hardDay: false });
+    await request(app).post('/api/reflect/sankalpa').set(VOL).send({ commitmentId: OTHER_C, text: 'To arrive without a plan.' });
+    const res = await mySeva(VOL);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.first.text, 'I kept correcting them.');
+    assert.equal(res.body.data.latest.text, 'A new place, the same waiting.');
+    assert.deepEqual(res.body.data.sankalpas.map(x => x.commitmentId), [X, OTHER_C]);
+    assert.match(res.body.data.sankalpas[0].text, /find their words/);
+    assert.deepEqual(forbiddenKeysIn(res.body), []);
+  });
+
+  it('returns nothing for another user or a coordinator (a faked x-user-id is stripped by the gateway: api-test X21)', async () => {
+    for (const headers of [VOL2, NEW_VOL, COORD]) {
+      const res = await mySeva(headers);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data.first, null);
+      assert.equal(res.body.data.latest, null);
+      assert.deepEqual(res.body.data.sankalpas, []);
+    }
   });
 });

@@ -1,79 +1,108 @@
 @import "tailwindcss";
 
-/* SevaSetu theme, taken from docs/Reference-ui-page.png */
+/* SevaSetu design system: calm, warm and quiet — closer to a journal than a dashboard.
+   Accent saffron only for the primary button, the active tab and small highlights. */
 @theme {
   --font-sans: "Inter", "Noto Sans Tamil", "Nirmala UI", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Lora", ui-serif, Georgia, serif;
 
-  /* saffron: buttons, active nav, accents */
-  --color-saffron-50: #FFF6EE;
-  --color-saffron-100: #FDE8D7;
-  --color-saffron-200: #FBD3B4;
-  --color-saffron-300: #F8B27F;
-  --color-saffron-400: #F28A45;
-  --color-saffron-500: #E8590C;
-  --color-saffron-600: #D04A0A;
-  --color-saffron-700: #A93A0B;
+  /* four type sizes only: 24, 18, 15, 13 */
+  --text-xs: 13px;   --text-xs--line-height: 1.45;
+  --text-sm: 13px;   --text-sm--line-height: 1.45;
+  --text-base: 15px; --text-base--line-height: 1.55;
+  --text-lg: 18px;   --text-lg--line-height: 1.4;
+  --text-xl: 18px;   --text-xl--line-height: 1.4;
+  --text-2xl: 24px;  --text-2xl--line-height: 1.3;
+  --text-3xl: 24px;  --text-3xl--line-height: 1.3;
+  --text-4xl: 24px;  --text-4xl--line-height: 1.3;
+  --text-5xl: 24px;  --text-5xl--line-height: 1.3;
 
-  /* cream: page and card backgrounds */
-  --color-cream-50: #FFFCF8;
-  --color-cream-100: #FDF7EE;
-  --color-cream-200: #F8EBDA;
-  --color-cream-300: #F0DCC3;
+  /* accent saffron #D9530F */
+  --color-saffron-50: #FDF3EC;
+  --color-saffron-100: #FAE4D6;
+  --color-saffron-200: #F4C7AB;
+  --color-saffron-300: #EBA47A;
+  --color-saffron-400: #E27A43;
+  --color-saffron-500: #D9530F;
+  --color-saffron-600: #B9450C;
+  --color-saffron-700: #93370A;
 
-  /* brown: text */
-  --color-ink-900: #2E1A10;
-  --color-ink-800: #3D2416;
-  --color-ink-700: #573A28;
-  --color-ink-500: #85695A;
-  --color-ink-400: #A38B7C;
+  /* background cream #FBF6EE; cards white */
+  --color-cream-50: #FFFFFF;
+  --color-cream-100: #FBF6EE;
+  --color-cream-200: #F4EBDF;
+  --color-cream-300: #EADFD2;
 
-  /* names used by the diary, wisdom and Post a Need screens, on the same palette */
-  --color-saffron: #E8590C;
-  --color-saffron-strong: #D04A0A;
-  --color-saffron-deep: #A93A0B;
-  --color-ember: #B83404;
-  --color-peach: #FDE8D7;
-  --color-peach-soft: #FFF6EE;
-  --color-cream: #FDF7EE;
-  --color-surface: #FFFCF8;
-  --color-line: #F0DCC3;
-  --color-ink: #2E1A10;
-  --color-ink-soft: #573A28;
-  --color-track: #EEE5DA;
-  --color-warn: #FEF6D8;          /* privacy warnings on Post a Need */
-  --color-warn-line: #EFCB5B;
-  --color-warn-ink: #6B4404;
-  --shadow-pill: 0 6px 16px -6px rgb(208 74 10 / 0.55);
+  /* text dark brown #2B1D14; muted #7A6A5E */
+  --color-ink-900: #2B1D14;
+  --color-ink-800: #2B1D14;
+  --color-ink-700: #4A3B30;
+  --color-ink-500: #7A6A5E;
+  --color-ink-400: #9C8D81;
+
+  /* the same palette under the names the diary, wisdom and Post a Need screens use */
+  --color-saffron: #D9530F;
+  --color-saffron-strong: #D9530F;
+  --color-saffron-deep: #B9450C;
+  --color-ember: #B9450C;
+  --color-peach: #FAE4D6;
+  --color-peach-soft: #FDF3EC;
+  --color-cream: #FBF6EE;
+  --color-surface: #FFFFFF;
+  --color-line: #EADFD2;
+  --color-ink: #2B1D14;
+  --color-ink-soft: #7A6A5E;
+  --color-track: #EADFD2;
+  --color-warn: #FDF4DC;          /* Dignity Check highlights */
+  --color-warn-line: #E8C766;
+  --color-warn-ink: #6B4A08;
 
   /* week states */
-  --color-served: #E8590C;
-  --color-covered: #F2A33A;
-  --color-gap: #C9B4A4;
+  --color-served: #D9530F;
+  --color-covered: #E8A04A;
+  --color-gap: #CDBFB2;
 
-  --shadow-card: 0 1px 2px rgb(87 58 40 / 0.05), 0 6px 20px -8px rgb(87 58 40 / 0.18);
-  --shadow-lift: 0 10px 30px -10px rgb(208 74 10 / 0.45);
+  --shadow-card: 0 1px 2px rgb(43 29 20 / 0.04);
+  --shadow-pill: none;
+  --shadow-lift: none;
+
+  --radius-3xl: 16px;              /* every card is 16px round */
 }
 
 @layer base {
   html { -webkit-tap-highlight-color: transparent; }
   body {
-    @apply bg-cream-200 font-sans text-ink-800 antialiased;
+    @apply bg-cream-100 font-sans text-ink-800 antialiased;
   }
+  h1, h2, h3, blockquote { text-wrap: pretty; }
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; }
   :focus-visible { outline: 2px solid var(--color-saffron-500); outline-offset: 2px; }
 }
+
+/* one icon size and stroke everywhere */
+svg.lucide { width: 20px; height: 20px; stroke-width: 1.75; flex-shrink: 0; }
 
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 }
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
+/* the only motion: a 150 ms fade for pages and sheets */
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@utility animate-fade {
+  animation: fade 150ms ease-out both;
 }
 @utility animate-rise {
-  animation: rise 0.35s ease-out both;
+  animation: fade 150ms ease-out both;
+}
+/* loaders are still shapes, not motion */
+@utility animate-pulse {
+  animation: none;
+}
+@utility animate-spin {
+  animation: none;
 }

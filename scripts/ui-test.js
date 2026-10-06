@@ -2,13 +2,14 @@
 // at 390 px (phone layout), or at 1440 px with --desktop (sidebar layout).
 //   npm run test:ui                                   local: reseeds, then tests http://localhost:5174
 //   npm run test:ui:desktop                           the same at 1440 px
-//   WEB=https://your-site.vercel.app node scripts/ui-test.js           deployed (seed Atlas first)
+//   WEB=https://your-site.vercel.app GW=https://your-gateway node scripts/ui-test.js   deployed (seed Atlas first)
 // Needs the backend and the web app running, and Google Chrome installed (CHROME_PATH to override).
 // Every screen is also checked for sideways scrolling and console errors.
 const { chromium } = require('playwright-core');
 const ids = require('../seed/ids');
 
 const WEB = (process.env.WEB || 'http://localhost:5174').replace(/\/$/, '');
+const GW = (process.env.GW || 'http://localhost:8080').replace(/\/$/, '');     // the gateway, for one direct API read
 const DESKTOP = process.argv.includes('--desktop');
 const VIEWPORT = DESKTOP ? { width: 1440, height: 900 } : { width: 390, height: 844 };
 const results = [];
@@ -73,10 +74,10 @@ async function reloadUntil(page, locator, tries = 3) {
   await attempt('S2  home loads, 5 tabs work', async () => {
     const t0 = Date.now();
     await meera.getByRole('button', { name: /Meera/ }).click();
-    await meera.getByText('Begin Your Seva Journey').waitFor();
+    await meera.getByRole('link', { name: 'Find a Need' }).waitFor();
     const ms = Date.now() - t0;
     await fits(meera);
-    const tabs = [['Opportunities', '/opportunities'], ['My Seva', '/my-seva'], ['Wisdom', '/wisdom'], ['Profile', '/profile'], ['Home', '/']];
+    const tabs = [['Needs', '/opportunities'], ['My Seva', '/my-seva'], ['Wisdom', '/wisdom'], ['Profile', '/profile'], ['Home', '/']];
     for (const [label, path] of tabs) {
       await meera.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: label }).click();
       await meera.waitForURL(u => u.pathname === path);
@@ -87,6 +88,19 @@ async function reloadUntil(page, locator, tries = 3) {
 
   // U1, U3 — "Seva Wisdom for Today" on Home with its source; Read More opens Wisdom; chips filter
   await attempt('U1  wisdom card + Wisdom page', async () => {
+    await meera.goto(WEB + '/');
+    await meera.waitForLoadState('networkidle');
+    // ask the API directly (reading the page's own response body is flaky in Chrome)
+    const today = await meera.evaluate(async gw => {
+      const token = JSON.parse(localStorage.getItem('sevasetu-auth') || '{}')?.state?.token;
+      const r = await fetch(`${gw}/api/wisdom/today`, { headers: { Authorization: `Bearer ${token}` } });
+      return (await r.json()).data;
+    }, GW);
+    if (today === null) {
+      // quotes appear only once verified: true in seed/wisdom.json; until then the card stays hidden
+      console.log('SKIP  U1  wisdom card + Wisdom page  -> no quote is verified yet');
+      return;
+    }
     const card = meera.locator('section', { hasText: 'Seva Wisdom for Today' });
     await card.waitFor();
     const source = await card.getByText(/Complete Works/).count();
@@ -107,12 +121,16 @@ async function reloadUntil(page, locator, tries = 3) {
   let posted = null;
   await attempt('U13 post a need (draft, warnings, read-back, publish)', async () => {
     await lakshmi.goto(WEB + '/coordinator/post-need');
-    await lakshmi.getByText('English', { exact: true }).click();
+    await lakshmi.getByRole('radio', { name: 'English' }).check({ force: true });     // the draft language, not the UI toggle
     const words = lakshmi.locator('#need-words');
     await words.fill('Ravi, a poor boy, his father\'s income is Rs 5000, wants help with English on Saturday.');
     await lakshmi.getByRole('button', { name: 'Make draft' }).click();
-    await lakshmi.getByTestId('privacy-warnings').waitFor({ timeout: 20000 });
-    const warnings = await lakshmi.getByTestId('privacy-warnings').locator('li').count();
+    await lakshmi.getByTestId('dignity-check').locator('mark').first().waitFor({ timeout: 20000 });
+    const warnings = await lakshmi.getByTestId('dignity-check').locator('mark').count();
+    await lakshmi.getByTestId('dignity-check').getByText('Suggested', { exact: true }).first().waitFor();
+    await lakshmi.getByTestId('dignity-check').getByRole('button', { name: 'Use this' }).first().click();
+    const rewritten = await lakshmi.locator('#need-original').inputValue();
+    if (/Ravi|poor|5000/.test(rewritten)) throw new Error(`the rewrite was not used: ${rewritten}`);
     await lakshmi.getByRole('button', { name: 'Start again' }).click();
     await words.fill('12 students of class 6 to 8 want help reading English aloud, Saturday mornings 10:30 to 12 at the government school in Kanchipuram.');
     await lakshmi.getByRole('button', { name: 'Make draft' }).click();
@@ -183,12 +201,16 @@ async function reloadUntil(page, locator, tries = 3) {
   await attempt('S7  listen flow', async () => {
     await meera.getByRole('link', { name: /Visit and listen/ }).click();
     await meera.getByText('Before you visit').waitFor();           // the teaching for this moment
-    await meera.getByText('Verified teaching').first().waitFor();
+    await meera.getByRole('heading', { name: /Listening Guide/ }).waitFor();
+    if (await meera.locator('#listening-guide + p + ol li').count() !== 3) throw new Error('the Listening Guide does not show 3 questions');
+    await meera.getByText('Interpretation').first().waitFor();       // our words; the quote shows once verified
     await meera.getByRole('button', { name: 'I understand' }).click();
     await meera.getByRole('button', { name: 'Request a visit' }).click();
     await meera.getByPlaceholder(/I thought they wanted/).fill('They wanted to speak first, and only then read.');
     await meera.getByRole('button', { name: 'Save what I heard' }).click();
-    await meera.getByRole('button', { name: 'Yes', exact: true }).click();
+    // One Visit ramp: the volunteer is asked nothing after the visit
+    await meera.getByText('The next word is theirs').waitFor();
+    if (await meera.getByRole('button', { name: /^(Yes|Commit)$/ }).count()) throw new Error('the volunteer was asked to decide before the community');
     await meera.getByText('Waiting for the community’s answer').waitFor();
     await fits(meera);
     check('S7  listen flow', true);
@@ -197,8 +219,12 @@ async function reloadUntil(page, locator, tries = 3) {
   // S8 — the coordinator says yes in another browser; the volunteer sees Commit
   await attempt('S8  coordinator yes -> Commit appears', async () => {
     await lakshmi.goto(WEB + '/coordinator');
-    await lakshmi.getByRole('button', { name: /Yes, welcome/ }).click();
+    await lakshmi.getByRole('button', { name: /Invite them back/ }).click();
     await lakshmi.getByText('No visits waiting.').waitFor();
+    // Updated after listening: the suggested line from what Meera heard, approved onto the card
+    const update = lakshmi.getByTestId('listening-update').filter({ hasText: 'They wanted to speak first' });
+    await update.getByRole('button', { name: /Add to the card/ }).click();
+    await update.waitFor({ state: 'detached' });
     await fits(lakshmi);
     const shown = await reloadUntil(meera, meera.getByRole('link', { name: 'Commit' }));
     check('S8  coordinator yes -> Commit appears', shown, 'Commit button did not appear');
@@ -210,12 +236,15 @@ async function reloadUntil(page, locator, tries = 3) {
     const sentence = meera.getByPlaceholder('I will come every…');
     await meera.waitForFunction(() => document.querySelector('textarea')?.value.startsWith('I will come every'));
     const prefilled = await sentence.inputValue();
+    const locked = await meera.getByRole('button', { name: 'Begin 4 weeks' }).isDisabled();   // the Sankalpa comes first
+    await meera.getByText('not what you will deliver').waitFor();                     // the helper line
+    await meera.getByPlaceholder('I hope to learn…').fill('To wait for someone else to find their words.');
     await fits(meera);
     await meera.getByRole('button', { name: 'Begin 4 weeks' }).click();
     await meera.waitForURL('**/my-seva');
     await meera.getByText('Week 1').first().waitFor();
-    check('S9  commit', await meera.getByText('of 4').first().isVisible() && /for 4 weeks\.$/.test(prefilled),
-      `"of 4" not shown, or sentence "${prefilled}"`);
+    check('S9  commit (with Sankalpa)', locked && await meera.getByText('of 4').first().isVisible() && /for 4 weeks\.$/.test(prefilled),
+      `locked before Sankalpa ${locked}, or "of 4" not shown, or sentence "${prefilled}"`);
   });
 
   // S3 — refresh on /my-seva keeps the page and the login
@@ -235,10 +264,12 @@ async function reloadUntil(page, locator, tries = 3) {
   // S11 — "I cannot come this week", and a circle member covers it
   const kavya = await person('Kavya');
   await attempt('S11 absence and cover', async () => {
-    await meera.getByRole('button', { name: 'I cannot come this week' }).click();
-    await meera.getByPlaceholder(/Where we stopped/).fill('We stopped at the story about the river.');
-    await meera.getByRole('button', { name: 'Tell my circle' }).click();
+    await meera.getByRole('button', { name: 'I cannot come this week' }).click();          // one tap
     await meera.getByText('cannot come', { exact: true }).first().waitFor();
+    await meera.getByPlaceholder(/Where we stopped/).fill('We stopped at the story about the river.');
+    await meera.getByRole('button', { name: 'Save note' }).click();
+    await meera.getByRole('button', { name: 'Save note' }).waitFor({ state: 'visible' });
+    await meera.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent.includes('Save note') && b.disabled));
     await kavya.goto(WEB + '/my-seva');
     await kavya.getByRole('button', { name: 'I will cover' }).waitFor();
     const noteSeen = await kavya.getByText('We stopped at the story about the river.').first().isVisible();
@@ -257,7 +288,16 @@ async function reloadUntil(page, locator, tries = 3) {
     await card.getByRole('combobox').selectOption({ label: 'Week 4' });
     await card.getByRole('button', { name: 'Go' }).click();
     await card.getByText('Week 4 of 4').waitFor();
-    await card.getByRole('textbox').fill('The students asked if you are coming next month.');
+    await card.getByText('The children were never left waiting.').waitFor();     // week 2 was covered, so no gap
+    // Community Check-in is due at week 4: three answers given in person
+    const checkIn = card.getByTestId('check-in');
+    await checkIn.getByLabel('Is this helping?').fill('Yes. They read aloud more now.');
+    await checkIn.getByLabel('Should anything change?').fill('Start ten minutes later.');
+    await checkIn.getByLabel('What can the group now do on their own?').fill('Choose their own books.');
+    await checkIn.getByRole('button', { name: /Save the check-in/ }).click();
+    await checkIn.waitFor({ state: 'detached' });
+    await card.getByText('Check-in, week 4').waitFor();
+    await card.getByRole('textbox', { name: 'Invitation to continue' }).fill('The students asked if you are coming next month.');
     const lockedUntilAsked = await card.getByRole('button', { name: 'Send invitation' }).isDisabled();
     await card.getByText(/I asked the community/).click();
     await card.getByRole('button', { name: 'Send invitation' }).click();
@@ -266,15 +306,18 @@ async function reloadUntil(page, locator, tries = 3) {
     await fits(lakshmi);
     await meera.reload();
     await meera.getByText('An invitation from the community').filter({ visible: true }).waitFor();
-    const choices = await Promise.all(['Continue for 4 more weeks', 'Pause', 'Finish']
-      .map(n => meera.getByRole('button', { name: n }).isVisible()));
+    const choices = await Promise.all([
+      meera.getByRole('button', { name: 'Continue', exact: true }).isVisible(),
+      meera.getByRole('button', { name: 'Pause' }).isVisible(),
+      meera.getByRole('link', { name: 'Finish' }).isVisible(),            // finishing is its own full screen
+    ]);
     await fits(meera);
     check('S12 time travel + invitation', choices.every(Boolean), `choices ${choices}`);
   });
 
   // S13 — Continue -> Week 4 of 8
   await attempt('S13 continue', async () => {
-    await meera.getByRole('button', { name: 'Continue for 4 more weeks' }).click();
+    await meera.getByRole('button', { name: 'Continue', exact: true }).click();
     await meera.getByText('of 8').first().waitFor();
     check('S13 continue', await meera.getByText('Week 4').first().isVisible(), 'Week 4 not shown');
   });
@@ -292,10 +335,20 @@ async function reloadUntil(page, locator, tries = 3) {
   await attempt('H1  finish with a handover', async () => {
     await meera.goto(WEB + '/my-seva');
     await meera.getByText('Need to step away?').click();
-    await meera.getByRole('button', { name: 'Finish' }).filter({ visible: true }).click();
+    await meera.getByRole('link', { name: 'Finish' }).filter({ visible: true }).click();
+    // the "finished" moment: "What did they give you?" comes first, and only then the handover
+    await meera.waitForURL('**/moments/finished/**');
+    await meera.getByText('What did they give you?').waitFor();
+    if (await meera.getByPlaceholder(/They are on chapter 3/).count()) throw new Error('the handover was asked before "What did they give you?"');
+    await meera.getByPlaceholder('They gave me…').fill('Their patience while I found the words.');
+    await fits(meera);
+    await meera.getByRole('button', { name: 'Next' }).click();
+    await meera.getByText('What did you give?').waitFor();
     const finish = meera.getByRole('button', { name: 'Finish and hand over' });
     const lockedEmpty = await finish.isDisabled();
-    await meera.getByPlaceholder(/The students are on chapter 3/).fill(handover);
+    await meera.getByPlaceholder(/They are on chapter 3/).fill(handover);
+    await meera.getByPlaceholder(/Reading aloud in pairs/).fill('Let them choose the story.');
+    await meera.getByPlaceholder(/Arrive a few minutes early/).fill('The room opens at 10.');
     await finish.click();
     await meera.getByText(/Finished\. Thank you/).waitFor();
     await kavya.goto(WEB + '/my-seva');
@@ -317,6 +370,28 @@ async function reloadUntil(page, locator, tries = 3) {
     check('S15 other volunteer sees only their own', leak === 0, 'saw Meera\'s commitment');
   });
 
+  // M1 — the "declined" moment: Rahul visits need 3, the community says not now; a calm screen, one action
+  await attempt('M1  declined moment', async () => {
+    await meera.goto(`${WEB}/needs/${ids.needs.need3}/listen`);
+    await meera.getByRole('button', { name: 'I understand' }).click();
+    await meera.getByRole('button', { name: 'Request a visit' }).click();
+    await meera.getByPlaceholder(/I thought they wanted/).fill('They want to choose the songs themselves.');
+    await meera.getByRole('button', { name: 'Save what I heard' }).click();
+    await meera.getByText('The next word is theirs').waitFor();
+    await lakshmi.goto(WEB + '/coordinator');
+    await lakshmi.getByRole('button', { name: 'Not now' }).click();
+    await lakshmi.getByText('No visits waiting.').waitFor();
+    await meera.goto(`${WEB}/needs/${ids.needs.need3}/listen`);
+    await meera.waitForURL('**/moments/declined');
+    await meera.getByRole('heading', { name: 'Not this time' }).waitFor();
+    const text = await meera.locator('main').innerText();
+    const nav = await meera.getByRole('navigation', { name: 'Main' }).count();
+    await fits(meera);
+    await meera.getByRole('link', { name: 'See the next need' }).click();
+    await meera.waitForURL('**/opportunities');
+    check('M1  declined moment', !/sorry/i.test(text) && nav === 0 && /theirs to give/.test(text), `sorry ${/sorry/i.test(text)}, nav ${nav}`);
+  });
+
   // H2 — the need is open again, and the next volunteer reads the handover on the card
   await attempt('H2  next volunteer sees the handover', async () => {
     await meera.goto(`${WEB}/needs/${ids.needs.need2}`);
@@ -326,9 +401,59 @@ async function reloadUntil(page, locator, tries = 3) {
     check('H2  next volunteer sees the handover', note && canListen, `note ${note}, can visit ${canListen}`);
   });
 
+  // V1 — the community's voice back: Lakshmi relays one line from the group on Meera's finished seva, through the
+  // Dignity Check (a name is flagged; she uses the rewrite), and Meera sees it on My Seva and Then and Now
+  const groupSaid = 'They said the Saturday mornings are theirs now.';
+  await attempt('V1  community words at finish', async () => {
+    await lakshmi.goto(WEB + '/coordinator');
+    const card = lakshmi.locator('li', { hasText: 'Meera Krishnan' }).filter({ hasText: 'finished' }).first();
+    await card.getByRole('button', { name: 'Add what the group wanted to say' }).click();
+    const box = card.getByRole('textbox', { name: 'What the group wanted to say' });
+    await box.fill('Ravi said the poor children miss you.');
+    await card.getByTestId('dignity-check').getByText(/poor/).first().waitFor();          // flagged
+    const relay = card.getByRole('button', { name: /^Relay to/ });
+    const lockedWhileFlagged = await relay.isDisabled();
+    await box.fill(groupSaid);
+    await card.getByText('Nothing to change').waitFor();
+    await card.getByText(/I checked these words/).click();
+    await relay.click();
+    await card.getByTestId('community-words').getByText(groupSaid).waitFor();
+    // this browser is Rahul since S15: log out, log in as Meera
+    await meera.goto(WEB + '/profile');
+    await meera.getByRole('button', { name: 'Log out' }).click();
+    await meera.waitForURL('**/login');
+    await meera.getByRole('button', { name: /Meera/ }).click();
+    await meera.waitForURL(u => !u.pathname.startsWith('/login'));
+    await meera.goto(WEB + '/my-seva');
+    await meera.getByTestId('community-words').first().getByText(groupSaid).waitFor();
+    await fits(meera);
+    await meera.getByRole('link', { name: /Seva Diary/ }).filter({ visible: true }).click();
+    await meera.waitForURL('**/reflect/**');
+    const diaryUrl = new URL(meera.url());
+    await meera.goto(`${WEB}${diaryUrl.pathname}/then-and-now`);
+    await meera.getByTestId('community-words').getByText(groupSaid).waitFor();
+    const onThenAndNow = true;
+    await fits(meera);
+    check('V1  community words at finish', lockedWhileFlagged && onThenAndNow, `locked while flagged ${lockedWhileFlagged}, on Then and Now ${onThenAndNow}`);
+  });
+
   // U5, U6 — the seeded volunteer (week 2) opens the private diary, answers, and the entry is kept
   const arjun = await person('Arjun');
   const answer = 'I waited, and he finished the sentence himself.';
+  // Silent Seva: "I have arrived" → a calm full screen with no nav → "Session over" marks the week served and opens the diary
+  await attempt('SS  silent seva', async () => {
+    await arjun.goto(WEB + '/my-seva');
+    await arjun.getByRole('link', { name: /I have arrived/ }).filter({ visible: true }).click();
+    await arjun.getByText('Put the phone away.').waitFor();
+    const noNav = await arjun.getByRole('navigation').count() === 0;
+    await fits(arjun);
+    await arjun.getByRole('button', { name: 'Session over' }).click();
+    await arjun.waitForURL(`**/reflect/${ids.commitments.seeded}`);
+    await arjun.goto(WEB + '/my-seva');
+    await arjun.getByText('This week is served. Thank you.').waitFor();
+    check('SS  silent seva', noNav, 'the nav showed on the silent screen');
+  });
+
   await attempt('U5  diary: one question, private, saves', async () => {
     await arjun.goto(WEB + '/my-seva');
     await arjun.getByRole('link', { name: /Seva Diary/ }).filter({ visible: true }).click();
@@ -337,9 +462,11 @@ async function reloadUntil(page, locator, tries = 3) {
     const weekOne = await arjun.getByText('I kept correcting them.').isVisible();
     await arjun.locator('#diary-text').fill(answer);
     await arjun.getByText('This was a hard day').click();
+    await arjun.getByText('What was in your hands today, and what was not?').first().waitFor();   // Hard Day mode
+    const ownWords = await arjun.getByText('You wrote, on an earlier week:').isVisible();
+    if (!ownWords) throw new Error('Hard Day mode did not show her earlier words');
     await arjun.getByRole('button', { name: 'Save' }).click();
     await arjun.getByText('Saved in your diary').waitFor();
-    await arjun.getByText('After a hard day').waitFor();          // the teaching for a hard day
     await arjun.reload();
     await arjun.locator('#diary-text').waitFor();
     const kept = await arjun.locator('#diary-text').inputValue();
@@ -354,6 +481,7 @@ async function reloadUntil(page, locator, tries = 3) {
   await attempt('U10 then and now', async () => {
     await arjun.getByRole('link', { name: /Then and Now/ }).click();
     await arjun.getByTestId('then-and-now').waitFor();
+    await arjun.getByText('Your Sankalpa').waitFor();
     const then = await arjun.getByText('I kept correcting them.').isVisible();
     const now = await arjun.getByText(answer).isVisible();
     await fits(arjun);
@@ -361,6 +489,35 @@ async function reloadUntil(page, locator, tries = 3) {
   });
 
   // U18 — a coordinator opening a volunteer's diary sees nothing of it
+  // P1 — Profile: "My Seva so far" shows Arjun's first words and his Sankalpa, with no count or total
+  await attempt('P1  my seva so far on Profile', async () => {
+    await arjun.goto(WEB + '/profile');
+    const card = arjun.getByTestId('my-seva-so-far');
+    await card.getByText('I kept correcting them.').waitFor();
+    await card.getByText(/find their words/).waitFor();
+    const text = await card.innerText();
+    await fits(arjun);
+    check('P1  my seva so far on Profile', !/\d+ (entries|weeks|sevas|commitments)/i.test(text), 'a count or total is shown');
+  });
+
+  // L1 — Tamil on the coordinator screens only: the chrome translates, what people wrote does not; and it stays
+  // across pages until switched back
+  await attempt('L1  tamil coordinator screens', async () => {
+    await lakshmi.goto(WEB + '/coordinator');
+    await lakshmi.getByRole('button', { name: 'தமிழ்' }).first().click();
+    await lakshmi.getByRole('heading', { name: /^வணக்கம்/ }).waitFor();
+    const needTitleAsWritten = await lakshmi.getByText('English Reading Support').first().isVisible();
+    await lakshmi.getByRole('link', { name: /ஒரு தேவையைப் பதிவிடுங்கள்/ }).click();
+    await lakshmi.waitForURL('**/coordinator/post-need');
+    await lakshmi.getByRole('heading', { name: 'ஒரு தேவையைப் பதிவிடுங்கள்' }).waitFor();
+    await fits(lakshmi);
+    await lakshmi.getByRole('button', { name: 'English' }).first().click();
+    await lakshmi.getByRole('heading', { name: 'Post a Need' }).waitFor();
+    await lakshmi.goto(WEB + '/coordinator');
+    await lakshmi.getByRole('heading', { name: /^Vanakkam/ }).waitFor();
+    check('L1  tamil coordinator screens', needTitleAsWritten, 'the need title was translated or hidden');
+  });
+
   await attempt('U18 coordinator cannot read a diary', async () => {
     await lakshmi.goto(`${WEB}/reflect/${ids.commitments.seeded}`);
     await lakshmi.getByText('This diary is private').waitFor();
@@ -375,17 +532,16 @@ async function reloadUntil(page, locator, tries = 3) {
     check('U17 volunteer blocked from Post a Need', true);
   });
 
-  // R1 — Resource Connect: the school asks for tablets, connects with the college's offer, hands over
+  // R1 — Resource Connect: the school's "we lack 10 tablets" meets the college's "we have", hands over, in use
   await attempt('R1  resource connect', async () => {
     await lakshmi.goto(WEB + '/coordinator/resources');
-    await lakshmi.getByPlaceholder('tablets').fill('tablets');
-    await lakshmi.getByPlaceholder('10', { exact: true }).fill('10');
-    await lakshmi.getByRole('button', { name: 'Find matches' }).click();
     await lakshmi.getByText('Sri Ramana Arts College').first().waitFor();
     await lakshmi.getByRole('button', { name: 'Connect' }).first().click();
     await lakshmi.getByText(/Connected with/).first().waitFor();
     await lakshmi.getByRole('button', { name: 'Mark handed over' }).first().click();
-    await lakshmi.getByText(/Handed over on/).first().waitFor();
+    await lakshmi.getByText('Is it in use?').first().waitFor();
+    await lakshmi.getByRole('button', { name: 'Yes', exact: true }).first().click();
+    await lakshmi.getByText(/In use — thank you/).first().waitFor();
     await fits(lakshmi);
     check('R1  resource connect', true);
   });
@@ -396,6 +552,30 @@ async function reloadUntil(page, locator, tries = 3) {
     await meera.waitForURL(u => u.pathname === '/');
     check('X1  volunteer blocked from /coordinator', true);
   });
+
+  // M2 — the "closed" moment: the coordinator ends Arjun's need (English Reading Support). Arjun lands on
+  // the calm screen with nothing to choose, then My Seva shows the seva as complete. Last, because it ends his seva.
+  await attempt('M2  closed moment', async () => {
+    await lakshmi.goto(WEB + '/coordinator');
+    // the Post a Need step earlier posted a card with the same title; the seeded one is the row marked filled
+    const row = lakshmi.getByTestId('need-row').filter({ hasText: 'English Reading Support' }).filter({ hasText: 'filled' });
+    await row.getByRole('button', { name: 'This need has ended' }).click();
+    await row.getByPlaceholder(/Why it ended/).fill('The school has moved to a new building.');
+    await row.getByRole('button', { name: 'Close this need' }).click();
+    await lakshmi.getByTestId('need-row').filter({ hasText: 'English Reading Support' }).getByText('closed').waitFor();
+    const arjun = await person('Arjun');
+    await arjun.goto(WEB + '/my-seva');
+    await arjun.waitForURL('**/moments/closed/**');
+    await arjun.getByRole('heading', { name: 'This seva is complete' }).waitFor();
+    const choices = await arjun.getByRole('button', { name: /Continue|Pause|Finish/ }).count();
+    await fits(arjun);
+    await arjun.getByRole('link', { name: 'Back to My Seva' }).click();
+    await arjun.waitForURL('**/my-seva');
+    await arjun.getByText(/This seva is complete/).waitFor();
+    await arjun.context().close();
+    check('M2  closed moment', choices === 0, `choices offered ${choices}`);
+  });
+
 
   check('D2  no console errors', consoleErrors.length === 0, consoleErrors.slice(0, 5).join(' | '));
   check(`--  every screen fits ${VIEWPORT.width} px`, overflowing.length === 0, `too wide: ${[...new Set(overflowing)].join(', ')}`);
