@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* SevaSetu theme, taken from docs/Reference-ui-page.png */
+@theme {
+  --font-sans: "Inter", "Noto Sans Tamil", "Nirmala UI", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Lora", ui-serif, Georgia, serif;
+
+  /* saffron: buttons, active nav, accents */
+  --color-saffron-50: #FFF6EE;
+  --color-saffron-100: #FDE8D7;
+  --color-saffron-200: #FBD3B4;
+  --color-saffron-300: #F8B27F;
+  --color-saffron-400: #F28A45;
+  --color-saffron-500: #E8590C;
+  --color-saffron-600: #D04A0A;
+  --color-saffron-700: #A93A0B;
+
+  /* cream: page and card backgrounds */
+  --color-cream-50: #FFFCF8;
+  --color-cream-100: #FDF7EE;
+  --color-cream-200: #F8EBDA;
+  --color-cream-300: #F0DCC3;
+
+  /* brown: text */
+  --color-ink-900: #2E1A10;
+  --color-ink-800: #3D2416;
+  --color-ink-700: #573A28;
+  --color-ink-500: #85695A;
+  --color-ink-400: #A38B7C;
+
+  /* names used by the diary, wisdom and Post a Need screens, on the same palette */
+  --color-saffron: #E8590C;
+  --color-saffron-strong: #D04A0A;
+  --color-saffron-deep: #A93A0B;
+  --color-ember: #B83404;
+  --color-peach: #FDE8D7;
+  --color-peach-soft: #FFF6EE;
+  --color-cream: #FDF7EE;
+  --color-surface: #FFFCF8;
+  --color-line: #F0DCC3;
+  --color-ink: #2E1A10;
+  --color-ink-soft: #573A28;
+  --color-track: #EEE5DA;
+  --color-warn: #FEF6D8;          /* privacy warnings on Post a Need */
+  --color-warn-line: #EFCB5B;
+  --color-warn-ink: #6B4404;
+  --shadow-pill: 0 6px 16px -6px rgb(208 74 10 / 0.55);
+
+  /* week states */
+  --color-served: #E8590C;
+  --color-covered: #F2A33A;
+  --color-gap: #C9B4A4;
+
+  --shadow-card: 0 1px 2px rgb(87 58 40 / 0.05), 0 6px 20px -8px rgb(87 58 40 / 0.18);
+  --shadow-lift: 0 10px 30px -10px rgb(208 74 10 / 0.45);
+}
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-cream-200 font-sans text-ink-800 antialiased;
+  }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--color-saffron-500); outline-offset: 2px; }
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@utility animate-rise {
+  animation: rise 0.35s ease-out both;
+}

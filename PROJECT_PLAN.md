@@ -6,12 +6,11 @@ SevaSetu ("bridge of service") is a mobile-first web app for **sustained, dignit
 It does not help people "donate hours". It helps a volunteer find **one** right community need, **listen
 before committing**, serve the same people week after week, and reflect privately on what they learn.
 
-This page is the overview of the whole thing. The detailed build plans are:
+This page is the overview of the whole thing. How to run it is in [README.md](README.md). Related docs:
 
-- [person-a/PERSON_A_LEAD.md](person-a/PERSON_A_LEAD.md): gateway, core service, volunteer loop (70%)
-- [person-b/PERSON_B_SUPPORT.md](person-b/PERSON_B_SUPPORT.md): diary, wisdom, Seva Bridge AI (30%)
-- [shared/CONTRACT.md](shared/CONTRACT.md): the rules both halves keep to
-- [docs/INTEGRATION.md](docs/INTEGRATION.md): how the two folders merge into one app
+- [docs/CONTRACT.md](docs/CONTRACT.md): the rules every service keeps to
+- [docs/api.http](docs/api.http): all 29 endpoints as runnable requests
+- [docs/plans/](docs/plans/): the original two-person build plans (endpoint numbers and test ids come from these)
 
 ---
 
@@ -98,10 +97,10 @@ Login is a demo picker (tap a person). There are no passwords in this version.
 ```
 
 **Stack:** Node 20, Express, Mongoose, MongoDB Atlas, React, Vite, Tailwind, Zustand, axios.
-**Hosting:** Vercel (web), Render (services), Atlas (data). `mono.js` runs gateway + core in one
+**Hosting:** Vercel (web), Render (services), Atlas (data). `mono.js` runs the whole backend in one
 process as a fallback if a host misbehaves.
 
-**Rules every service follows** (full list in [shared/CONTRACT.md](shared/CONTRACT.md)):
+**Rules every service follows** (full list in [docs/CONTRACT.md](docs/CONTRACT.md)):
 
 - `GET /health` → `{ ok: true, service }`. Success is `{ data }`, failure is `{ error: { message } }`.
 - The user comes **only** from gateway headers, never from the request body.
@@ -168,7 +167,7 @@ Shared B components: `WisdomCard`, `WhyLink`, `WhyModal`, `VoiceInput` (mic on P
 | `seva_core` | users, orgs, needs, visits, commitments (with sessions), circles | No hours field. No personal fields for people served |
 | `seva_reflect` | questions, entries, wisdom, whys | Entries are private, indexed on `{ userId, commitmentId, week }` |
 
-Both seed scripts use the fixed ids in [shared/ids.js](shared/ids.js), so the seeded commitment in
+Both seed scripts use the fixed ids in [seed/ids.js](seed/ids.js), so the seeded commitment in
 core and the seeded diary entry in reflect line up. Seeds clear their collections first, so they are
 safe to rerun. Every Vivekananda quote must be checked against the *Complete Works* with volume and
 page. Unverified quotes are left out.
@@ -267,7 +266,7 @@ These are enforced in code and covered by tests, not just hidden in the UI.
 | Bhashini speech fails | Type/paste the Tamil sentence; Groq's `whisper-large-v3` as backup STT |
 | Bhashini translation fails | Groq drafts from the Tamil directly |
 | Render cold start | Hit `/health/all` 2 minutes before the demo |
-| Multi-service hosting breaks | `node mono.js` runs gateway + core in one process |
+| Multi-service hosting breaks | `node mono.js` runs the whole backend in one process |
 | reflect service down | Home still loads; only the Wisdom card is hidden |
 | Behind schedule | Cut in this order: Wisdom themes, voice input, privacy-flag UI. Never cut Diary, Then and Now, Post a Need |
 | A quote cannot be verified | Remove it from the seed |

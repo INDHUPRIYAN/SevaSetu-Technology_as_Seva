@@ -1,0 +1,11 @@
+{
+  "title": "English Reading Support",
+  "want": "A group of 12 students from class 6 to 8 would like help to read English aloud with confidence.",
+  "serveUsWell": "No photos, please. Come on time every Saturday. The students may take time to open up, so listen before you correct and let them choose the story.",
+  "youWillLearn": "The students can teach you a local game, and how patience helps a young reader find their own voice.",
+  "groupSize": 12,
+  "interestTags": ["teaching", "reading"],
+  "rhythm": { "day": "Saturday", "start": "10:00", "end": "12:00" },
+  "weeks": 4,
+  "place": "Government School, Kanchipuram"
+}

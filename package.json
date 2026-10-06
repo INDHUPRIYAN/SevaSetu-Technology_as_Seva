@@ -1,0 +1,24 @@
+{
+  "name": "sevasetu",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n gateway,core,reflect,bridge,web -c yellow,cyan,green,blue,magenta \"npm:dev -w services/gateway\" \"npm:dev -w services/core\" \"npm:dev -w services/reflect\" \"npm:dev -w services/bridge\" \"npm:dev -w apps/web\"",
+    "mono": "node mono.js",
+    "seed": "node seed/seed-core.js && node seed/seed-reflect.js",
+    "test": "npm test -w services/reflect && npm test -w services/bridge && npm test -w apps/web",
+    "test:api": "npm run seed && node scripts/api-test.js",
+    "test:ui": "npm run seed && node scripts/ui-test.js",
+    "test:ui:desktop": "npm run seed && node scripts/ui-test.js --desktop",
+    "build": "npm run build -w apps/web",
+    "check": "npm run check -w services/bridge",
+    "scan-keys": "node services/bridge/scripts/scan-keys.js"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "playwright-core": "^1.63.0"
+  }
+}
