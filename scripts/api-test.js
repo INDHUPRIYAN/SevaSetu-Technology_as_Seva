@@ -262,6 +262,28 @@ async function login(userId) {
       && !Object.keys(soFar.data).some(k => /count|total|streak|score/i.test(k)),
     `own ${JSON.stringify(soFar.data)}, other ${JSON.stringify(soFarOther.data)}, coordinator ${JSON.stringify(soFarCoord.data)}`);
 
+  // The diary never meets a model or a speech service. Checked on the real code paths: the reflect service
+  // makes no outbound call; the gateway sends /api/reflect only to reflect; the diary screens import no speech
+  // or bridge code; and an entry comes back exactly as written, with no flag, rewrite or sentiment key.
+  const fs = require('fs');
+  const path = require('path');
+  const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const walk = dir => fs.readdirSync(path.join(__dirname, '..', dir), { withFileTypes: true })
+    .flatMap(e => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
+  const reflectSrc = walk('services/reflect/src').map(read).join('\n');
+  const noOutbound = !/\bfetch\s*\(|require\(['"](axios|node-fetch|undici|https?)['"]\)/.test(reflectSrc);
+  const gatewaySrc = read('services/gateway/src/app.js');
+  const routed = /url\.startsWith\('\/api\/reflect'\)[^\n]*return 'reflect'/.test(gatewaySrc);
+  const diaryScreens = ['apps/web/src/pages/Diary.jsx', 'apps/web/src/pages/ThenAndNow.jsx'].map(read).join('\n');
+  const noSpeech = !/VoiceInput|SpeechRecognition|speechSynthesis|MediaRecorder|\/api\/bridge/.test(diaryScreens);
+  const rawWords = 'poor boy Ravi, income 5000: I got impatient today.';
+  const savedEntry = await call('POST', '/api/reflect/entries', { token: ARJUN, body: { commitmentId: ids.commitments.seeded, week: 3, text: rawWords } });
+  const savedKeys = Object.keys(savedEntry.data || {});
+  check('X23 the diary never meets a model or a speech service',
+    noOutbound && routed && noSpeech && savedEntry.status < 300 && savedEntry.data?.text === rawWords
+      && !savedKeys.some(k => /flag|rewrite|suggest|sentiment|score|summary|source/i.test(k)),
+    `reflect outbound-free ${noOutbound}, gateway routes reflect→reflect ${routed}, diary screens speech-free ${noSpeech}, entry ${savedEntry.status} text unchanged ${savedEntry.data?.text === rawWords}, keys ${savedKeys}`);
+
   // Silent Seva: "Session over" marks this week served; only the volunteer, never a week still to come
   const served = (token, week) => call('POST', `/api/commitments/${ids.commitments.seeded}/served`, { token, body: { week } });
   const [byOther, notYet, mineNow] = [await served(MEMBER, 2), await served(ARJUN, 3), await served(ARJUN, 2)];

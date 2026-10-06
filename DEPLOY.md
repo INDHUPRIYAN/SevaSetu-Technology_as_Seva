@@ -25,7 +25,7 @@ New → Blueprint → pick this repo. [render.yaml](render.yaml) creates `sevase
 | core | `MONGO_URI` | the `/seva_core` string |
 | core | `JWT_SECRET` | any long random string |
 | reflect | `MONGO_URI` | the `/seva_reflect` string |
-| bridge | `LLM_API_KEY` | a Groq key (optional) |
+| bridge | `LLM_API_KEY`, `LLM_MODEL` | a Groq key and the model name (optional; see the README table for every bridge variable) |
 | bridge | `BHASHINI_USER_ID`, `BHASHINI_ULCA_API_KEY` | optional; only for Tamil/Hindi speech and translation |
 | gateway | `JWT_SECRET` | the same value as core |
 | gateway | `CORE_URL`, `REFLECT_URL`, `BRIDGE_URL` | the three service URLs from the Render dashboard |

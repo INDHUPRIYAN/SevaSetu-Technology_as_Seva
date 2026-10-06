@@ -537,6 +537,27 @@ async function reloadUntil(page, locator, tries = 3) {
     check('L1  tamil coordinator screens', needTitleAsWritten, 'the need title was translated or hidden');
   });
 
+  // W1 — demo step 12: on Wisdom, describe a hard day; the Teaching Finder answers with a verified teaching (its
+  // stored text and source) or says plainly that no verified teaching was found. Never any text of its own.
+  await attempt('W1  teaching finder on Wisdom', async () => {
+    await arjun.goto(WEB + '/wisdom');
+    await arjun.waitForLoadState('networkidle');
+    if (!(await arjun.getByRole('heading', { name: 'Teaching Finder' }).count())) {
+      // the finder shows only once a quote is verified in seed/wisdom.json; until then there is nothing to find
+      console.log('SKIP  W1  teaching finder on Wisdom  -> no quote is verified yet, so the finder is not shown');
+      return;
+    }
+    await arjun.getByLabel(/Describe what happened/).fill('I had a hard day. I had to wait a long time, and I got impatient with them.');
+    await arjun.getByRole('button', { name: /Find a teaching/ }).click();
+    const found = arjun.getByTestId('found-teaching');
+    const none = arjun.getByText(/No verified teaching was found/);
+    await found.or(none).first().waitFor({ timeout: 20000 });
+    const shown = await found.count();
+    const ok = shown ? /Complete Works/.test(await found.innerText()) : await none.isVisible();
+    await fits(arjun);
+    check('W1  teaching finder on Wisdom', ok, shown ? 'a teaching without its source' : 'neither a teaching nor the plain "none found" line');
+  });
+
   await attempt('U18 coordinator cannot read a diary', async () => {
     await lakshmi.goto(`${WEB}/reflect/${ids.commitments.seeded}`);
     await lakshmi.getByText('This diary is private').waitFor();

@@ -265,8 +265,55 @@ GET {{gw}}/api/wisdom/why/abc
 Authorization: Bearer {{vol}}
 
 ########################################################################
-### bridge-service (endpoints 28–29)
+### bridge-service (endpoints 28–30, VoiceBridge, capabilities)
 ########################################################################
+
+### What the bridge has: { llm, speech } (false, false with no keys)
+GET {{gw}}/api/bridge/capabilities
+Authorization: Bearer {{coord}}
+
+### VoiceBridge, first turn (coordinator). A vague sentence → exactly one question, in the language (source "rules" with no key)
+POST {{gw}}/api/bridge/voicebridge
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "language": "ta", "turns": [{ "role": "coordinator", "text": "பள்ளி குழந்தைகளுக்கு ஆங்கிலம் படிக்க உதவி வேண்டும்" }], "draft": null, "context": { "recentCards": [] } }
+
+### VoiceBridge, one complete sentence → no question, straight to the read-back
+POST {{gw}}/api/bridge/voicebridge
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "language": "en", "turns": [{ "role": "coordinator", "text": "12 students of class 6 to 8 want help reading English aloud at the Community Hall in Guduvanchery, every Saturday 10 am to 12, for 4 weeks. Volunteers should let them choose the story. A volunteer will learn to wait." }], "draft": null, "context": { "recentCards": [] } }
+
+### VoiceBridge, a spoken edit → only the day changes (send the turns and the draft back, as the browser does)
+POST {{gw}}/api/bridge/voicebridge
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "language": "en", "turns": [{ "role": "coordinator", "text": "help with maths on Wednesday at the Village Library" }, { "role": "coordinator", "text": "Change Wednesday to Thursday" }], "draft": { "title": "Maths with the group", "want": "help with maths", "serveUsWell": "", "youWillLearn": "", "groupSize": 0, "interestTags": ["maths"], "rhythm": { "day": "Wednesday", "start": "", "end": "" }, "weeks": 0, "place": "Village Library" }, "context": {} }
+
+### VoiceBridge, "Poor boy Ravi, family earns 5000" → privacyFlags set; the draft has no name, income or "poor"
+POST {{gw}}/api/bridge/voicebridge
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "language": "en", "turns": [{ "role": "coordinator", "text": "Poor boy Ravi, family earns 5000, wants help reading on Sunday at the Village Library" }], "draft": null, "context": {} }
+
+### VoiceBridge, a volunteer → 403
+POST {{gw}}/api/bridge/voicebridge
+Authorization: Bearer {{vol}}
+Content-Type: application/json
+
+{ "language": "en", "turns": [{ "role": "coordinator", "text": "x" }] }
+
+### 30. Read It Aloud: text → base64 WAV (Bhashini). With no keys → 503 and the browser reads it
+POST {{gw}}/api/bridge/speak
+Authorization: Bearer {{coord}}
+Content-Type: application/json
+
+{ "text": "தேவை: ஆங்கில வாசிப்பு. ஒவ்வொரு சனிக்கிழமை 10:00 முதல் 12:00 வரை.", "language": "ta" }
+
 
 ### 28. Draft from English (B1: 9 keys, source "ai" when LLM_API_KEY is set, else "fallback")
 POST {{gw}}/api/bridge/draft-need

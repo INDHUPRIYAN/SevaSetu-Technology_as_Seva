@@ -66,9 +66,24 @@ npm run dev         # all five parts; open http://localhost:5174
 
 The web app runs on **5174** (another local project uses Vite's default 5173).
 
-**AI and voice keys are optional.** Without `LLM_API_KEY` (a Groq key), Post a Need gives a sample draft card
-to edit. Without the Bhashini keys, a recording adds no words (type instead) and Tamil or Hindi
-words go to Groq untranslated. To check real keys: `npm run check` (add a 16 kHz Tamil `.wav` path after
+**AI and voice keys are optional; the app works with none.** The AI layer lives in `services/bridge`
+behind two small modules, `providers/llm.js` (Groq) and `providers/language.js` (Bhashini), so providers
+can be swapped. Every model answer is JSON checked against a schema on the server, retried once, and
+dropped for the rule-based fallback if it still does not fit; every call times out at 8 s.
+
+| Variable (in `services/bridge/.env`) | What it does | Without it |
+|---|---|---|
+| `LLM_PROVIDER` | `groq` (default) or `none` | — |
+| `LLM_API_KEY` | Groq key (console.groq.com) | VoiceBridge, Dignity rewrite, Listening Guide, Teaching Finder answer with their rule-based fallbacks and are never labelled "Suggested" |
+| `LLM_MODEL` | the model name, e.g. `openai/gpt-oss-120b`; never written in the code | same as no key |
+| `LLM_RESPONSE_FORMAT` | `json_schema` (Groq constrained decoding, gpt-oss / qwen3 models) or `json_object` (any model) | `json_schema` |
+| `LLM_BASE_URL` | another OpenAI-compatible chat endpoint | Groq's |
+| `LANGUAGE_PROVIDER` | `bhashini` (default) or `none` | — |
+| `BHASHINI_USER_ID`, `BHASHINI_ULCA_API_KEY` | speech to text, translation, text to speech (bhashini.gov.in → profile) | the browser's own Web Speech and speechSynthesis are used for the mic and Read It Aloud; Tamil/Hindi words go to the model untranslated |
+| `BHASHINI_PIPELINE_ID`, `BHASHINI_TTS_GENDER` | public pipeline id (docs/BHASHINI.md); `female` or `male` voice | defaults |
+| `DRAFT_TIMEOUT_MS`, `TRANSLATE_TIMEOUT_MS` | provider timeouts | 8000 / 4000 |
+
+To check real keys: `npm run check` (add a 16 kHz Tamil `.wav` path after
 `--` to test speech too). Keys live only in `services/bridge/.env`, which git ignores;
 `npm run scan-keys` confirms they appear nowhere else in the repo.
 

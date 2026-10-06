@@ -115,12 +115,20 @@ describe('Diary', () => {
     expect(screen.getByLabelText('Your answer')).toHaveValue('words');
   });
 
-  it('the diary has no mic: it is type-only', async () => {
+  it('the diary has no mic: it is type-only, and every call it makes goes to the private reflect service', async () => {
     signIn(VOLUNTEER);
     diaryApi();
-    openDiary();
+    const { container } = openDiary();
     await screen.findByLabelText('Your answer');
     expect(screen.queryByRole('button', { name: /Speak/ })).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-label*="Speak"], [aria-label*="record"], [data-testid="voice-input"]')).toBeNull();
+    await userEvent.type(screen.getByLabelText('Your answer'), 'I kept correcting them again.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved in your diary');
+    const urls = [...api.get.mock.calls, ...api.post.mock.calls].map(([url]) => url);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const url of urls) expect(url).toMatch(/^\/api\/(reflect|commitments)\//);
+    expect(urls.some(u => u.includes('/api/bridge'))).toBe(false);
   });
 
   it('U12: no score, streak, badge, count, share button or photo upload', async () => {

@@ -35,16 +35,24 @@ services:
     startCommand: node services/bridge/src/server.js
     healthCheckPath: /health
     envVars:
-      - key: LLM_API_KEY        # Groq key; without it, Post a Need uses the fallback draft
+      - key: LLM_PROVIDER       # groq | none
+        value: groq
+      - key: LLM_API_KEY        # Groq key; without it (or without LLM_MODEL) every AI job uses its rule-based fallback
         sync: false
-      - key: LLM_MODEL
+      - key: LLM_MODEL          # no model name is written in the code
         value: openai/gpt-oss-120b
-      - key: BHASHINI_USER_ID   # without these, the mic and Tamil translation are skipped
+      - key: LLM_RESPONSE_FORMAT   # json_schema (gpt-oss / qwen3 models) or json_object (any model)
+        value: json_schema
+      - key: LANGUAGE_PROVIDER  # bhashini | none
+        value: bhashini
+      - key: BHASHINI_USER_ID   # without these, speech, translation and the voice fall back to the browser's own
         sync: false
       - key: BHASHINI_ULCA_API_KEY
         sync: false
       - key: BHASHINI_PIPELINE_ID
         value: 64392f96daac500b55c543cd
+      - key: BHASHINI_TTS_GENDER
+        value: female
 
   - type: web
     name: sevasetu-gateway

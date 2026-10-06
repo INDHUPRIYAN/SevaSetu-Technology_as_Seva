@@ -147,12 +147,24 @@ process as a fallback if a host misbehaves.
 | 27 | "Why?" for a rule: verified teaching (or none) → interpretation → product decision |
 | 27b | A teaching for one moment (before-listen, commit, hard-day, continue): verified teaching → interpretation → practice. The non-attachment moments (declined, closed, finished) carry no quotation: plain words → practice |
 
-### bridge — endpoints 28–29
+### bridge — endpoints 28–30 and the AI jobs
+
+The AI principle: AI understands, suggests and organises; humans decide. Providers sit behind two modules
+(`providers/llm.js`, `providers/language.js`); every model answer is JSON checked against its schema on the
+server, retried once, then dropped for the rule-based fallback; every call times out at 8 s; nothing is
+stored (no audio, no transcripts, no turns, no raw model output). Coordinators only for anything that drafts.
 
 | # | What |
 |---|---|
-| 28 | Coordinator's words → draft need card. Bhashini translates Tamil/Hindi → Groq (`openai/gpt-oss-120b`, strict JSON) drafts → privacy flags. 8 s timeout, falls back to a fixed draft. Never publishes |
+| 28 | Coordinator's words → draft need card (the one-shot path; kept for the API tests). Never publishes |
 | 29 | Speech → text through Bhashini. Audio is never stored |
+| 30 | `POST /speak`: text → speech through Bhashini for Read It Aloud; 503 with no provider, and the browser's `speechSynthesis` reads instead |
+| — | `GET /capabilities`: `{ llm, speech }`, so the UI labels "Suggested" only when a model answered and starts the mic in the browser when there is no speech provider |
+| — | `POST /voicebridge` (**VoiceBridge**): stateless; `{ language, turns, draft, context }` → `{ draft, missing, question, readBack, relatedCardId, privacyFlags, source }`. Rules always run (weekday / time / weeks / size in en, ta, hi; sentence roles; "change Wednesday to Thursday"; the related-card question once). With a model: extraction and the question / read-back wording in the coordinator's language, but the server decides what is missing, caps the questions at 3, cleans every string through the dignity rules and rejects any model sentence carrying a flagged word |
+| — | `POST /dignity-check`: rule flags (name, money, caste, religion, health, age, the words we avoid) with a one-line reason and a rewrite; a model may add flags and a better rewrite. Publish waits until the check ran on the current words and every flag has an answer; a rules-only answer is said plainly |
+| — | `POST /listening-guide`: 3 open questions for the visit; a model question that assumes anything about the group is dropped; fallback 3 fixed questions |
+| — | `POST /suggest-update`: one line for the card after a visit, or null |
+| — | `POST /find-teaching`: the id of the closest *verified* teaching, or null; the text shown is always the stored one |
 
 ---
 
