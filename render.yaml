@@ -1,0 +1,35 @@
+# Render Blueprint for Person A's backend (render.com → New → Blueprint → pick this repo).
+# Secrets marked `sync: false` are asked for in the Render dashboard; they never live in git.
+# The web app goes to Vercel: root directory person-a/apps/web, env VITE_API_URL = the gateway URL.
+services:
+  - type: web
+    name: sevasetu-core
+    runtime: node
+    rootDir: person-a
+    buildCommand: npm ci
+    startCommand: node services/core/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI          # Atlas connection string ending in /seva_core
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  - type: web
+    name: sevasetu-gateway
+    runtime: node
+    rootDir: person-a
+    buildCommand: npm ci
+    startCommand: node services/gateway/src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: JWT_SECRET         # the same value as core's
+        sync: false
+      - key: CORE_URL           # core's URL from the Render dashboard, e.g. https://sevasetu-core.onrender.com
+        sync: false
+      - key: WEB_ORIGIN         # the Vercel URL of the web app
+        sync: false
+      - key: REFLECT_URL        # empty until Person B's services are deployed
+        value: ""
+      - key: BRIDGE_URL
+        value: ""

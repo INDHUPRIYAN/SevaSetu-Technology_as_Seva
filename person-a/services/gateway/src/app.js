@@ -6,14 +6,20 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const PUBLIC = ['/api/auth/users', '/api/auth/demo-login'];   // no token needed
 
-// REFLECT_URL and BRIDGE_URL stay empty until Person B's services are integrated
-function pickTarget(url) {
-  if (url.startsWith('/api/reflect') || url.startsWith('/api/wisdom')) return process.env.REFLECT_URL;
-  if (url.startsWith('/api/bridge')) return process.env.BRIDGE_URL;
-  return process.env.CORE_URL;
+function serviceFor(url) {
+  if (url.startsWith('/api/reflect') || url.startsWith('/api/wisdom')) return 'reflect';
+  if (url.startsWith('/api/bridge')) return 'bridge';
+  return 'core';
 }
 
-function createApp() {
+// REFLECT_URL and BRIDGE_URL stay empty until Person B's services are integrated
+const URLS = () => ({ core: process.env.CORE_URL, reflect: process.env.REFLECT_URL, bridge: process.env.BRIDGE_URL });
+const pickTarget = url => URLS()[serviceFor(url)];
+
+// options.local = { core: app, reflect: app, bridge: app } runs the services in this process
+// instead of proxying to them (used by mono.js). Without it, every service is a URL.
+function createApp(options = {}) {
+  const local = options.local;
   const app = express();
   app.use(cors({ origin: process.env.WEB_ORIGIN || true }));
   // IMPORTANT: no express.json() here. If the gateway reads the body, the proxy sends an empty one.
@@ -22,6 +28,7 @@ function createApp() {
 
   // wake-up route: call this 2 minutes before the demo
   app.get('/health/all', async (req, res) => {
+    if (local) return res.json({ core: !!local.core, reflect: !!local.reflect, bridge: !!local.bridge });
     const urls = [process.env.CORE_URL, process.env.REFLECT_URL, process.env.BRIDGE_URL];
     const results = await Promise.all(
       urls.map(u => (u ? fetch(u + '/health').then(r => r.ok).catch(() => false) : false))
@@ -47,9 +54,14 @@ function createApp() {
 
   // a service that is not integrated yet answers clearly instead of falling through to core
   app.use((req, res, next) => {
-    if (pickTarget(req.url)) return next();
+    if (local ? local[serviceFor(req.url)] : pickTarget(req.url)) return next();
     res.status(503).json({ error: { message: 'This service is not connected yet' } });
   });
+
+  if (local) {
+    app.use((req, res, next) => local[serviceFor(req.url)](req, res, next));
+    return app;
+  }
 
   // forward everything else, path unchanged
   app.use(createProxyMiddleware({

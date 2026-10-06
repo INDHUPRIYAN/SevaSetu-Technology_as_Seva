@@ -1,5 +1,5 @@
 // services/core/src/server.js — connects to MongoDB, then listens
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const mongoose = require('mongoose');
 const { createApp } = require('./app');
 

@@ -7,6 +7,7 @@ module.exports = {
     seededVolunteer: '650000000000000000000002',   // already at week 2 of 4
     circleMember:    '650000000000000000000003',
     coordinator:     '650000000000000000000004',
+    otherVolunteer:  '650000000000000000000005',   // not in the circle (tests that outsiders cannot cover)
   },
   orgs: {
     govtSchool: '650000000000000000000011',        // Government School, Kanchipuram (verified, 3 km)
@@ -14,9 +15,13 @@ module.exports = {
     org3:       '650000000000000000000013',
   },
   needs: {
-    englishReading: '650000000000000000000021',    // the demo need
+    englishReading: '650000000000000000000021',    // the seeded volunteer's need (filled)
     need2:          '650000000000000000000022',
     need3:          '650000000000000000000023',
+    need4:          '650000000000000000000024',
+    need5:          '650000000000000000000025',
+    need6:          '650000000000000000000026',
+    need7:          '650000000000000000000027',
   },
   visits: {
     seeded: '650000000000000000000031',
