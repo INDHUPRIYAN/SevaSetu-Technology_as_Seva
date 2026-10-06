@@ -254,3 +254,44 @@ describe('29. POST /api/bridge/transcribe', () => {
     });
   });
 });
+
+describe('30. POST /api/bridge/speak — text to speech, never stored', () => {
+  const COORD = { 'x-user-id': '650000000000000000000004', 'x-user-role': 'coordinator' };
+  const VOL = { 'x-user-id': '650000000000000000000002', 'x-user-role': 'volunteer' };
+  const speakWith = speak => createApp({ speak, draftTimeoutMs: 200 });
+  const post = (app, body, headers = COORD) => request(app).post('/api/bridge/speak').set(headers).send(body);
+
+  it('coordinators only; words and a known language are needed', async () => {
+    const app = speakWith(async () => ({ audioBase64: 'UklGRg==', format: 'wav' }));
+    assert.equal((await post(app, { text: 'x', language: 'ta' }, VOL)).status, 403);
+    assert.equal((await post(app, { text: '  ', language: 'ta' })).status, 400);
+    assert.equal((await post(app, { text: 'x', language: 'fr' })).status, 400);
+    assert.equal((await post(app, { text: 'x'.repeat(2001), language: 'ta' })).status, 400);
+  });
+
+  it('returns the provider\'s audio for the text and language, and keeps nothing', async () => {
+    const calls = [];
+    const app = speakWith(async args => { calls.push(args); return { audioBase64: 'UklGRg==', format: 'wav', samplingRate: 8000 }; });
+    const res = await post(app, { text: 'வணக்கம்', language: 'ta' });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.data, { audioBase64: 'UklGRg==', format: 'wav', samplingRate: 8000, source: 'bhashini' });
+    assert.deepEqual(calls, [{ text: 'வணக்கம்', language: 'ta' }]);
+  });
+
+  it('with no speech provider (no keys) → 503, so the browser reads it instead; a slow provider → 503 too', async () => {
+    const saved = { u: process.env.BHASHINI_USER_ID, k: process.env.BHASHINI_ULCA_API_KEY };
+    delete process.env.BHASHINI_USER_ID;
+    delete process.env.BHASHINI_ULCA_API_KEY;
+    try {
+      const real = createApp({ draftTimeoutMs: 500 });
+      const res = await post(real, { text: 'வணக்கம்', language: 'ta' });
+      assert.equal(res.status, 503);
+      assert.match(res.body.error.message, /browser/);
+    } finally {
+      if (saved.u) process.env.BHASHINI_USER_ID = saved.u;
+      if (saved.k) process.env.BHASHINI_ULCA_API_KEY = saved.k;
+    }
+    const slow = speakWith(() => new Promise(() => {}));
+    assert.equal((await post(slow, { text: 'x', language: 'en' })).status, 503);
+  });
+});

@@ -26,7 +26,7 @@ function withTimeout(promise, ms) {
 
 const fail = (res, status, message) => res.status(status).json({ error: { message } });
 
-function bridgeRouter({ callLLM, translate, transcribe, draftTimeoutMs, translateTimeoutMs }) {
+function bridgeRouter({ callLLM, translate, transcribe, speak, draftTimeoutMs, translateTimeoutMs }) {
   const router = express.Router();
 
   // 28. Coordinator's words → draft need card + privacy warnings
@@ -77,6 +77,24 @@ function bridgeRouter({ callLLM, translate, transcribe, draftTimeoutMs, translat
       res.json({ data: { text: typeof text === 'string' ? text.trim() : '' } });
     } catch (e) {
       fail(res, 502, 'Could not hear that. Please type instead.');
+    }
+  });
+
+  // 30. Text to speech through Bhashini: the whole card, in the selected language, for the community to hear.
+  // Coordinators only. The audio is handed to the browser and dropped; nothing is stored. With no speech
+  // provider the answer is 503 and the browser uses its own speechSynthesis.
+  router.post('/speak', async (req, res) => {
+    if (req.headers['x-user-role'] !== 'coordinator') return fail(res, 403, 'Coordinators only');
+    const { text, language = 'ta' } = req.body || {};
+    if (typeof text !== 'string' || !text.trim()) return fail(res, 400, 'Please send the words to read');
+    if (text.length > 2000) return fail(res, 400, 'Please keep it under 2000 characters');
+    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be ta, hi or en');
+    try {
+      const out = await withTimeout(speak({ text: text.trim(), language }), draftTimeoutMs);
+      if (!out?.audioBase64) throw new Error('no audio');
+      res.json({ data: { audioBase64: out.audioBase64, format: out.format || 'wav', samplingRate: out.samplingRate || null, source: 'bhashini' } });
+    } catch (e) {
+      fail(res, 503, 'No voice is available here. The browser can read it instead.');
     }
   });
 

@@ -12,6 +12,8 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
 import VoiceBridge from '../components/seva/VoiceBridge';
+import ReadAloud from '../components/seva/ReadAloud';
+import { readBackOf } from '../components/seva/needDraft';
 import WhyLink from '../components/seva/WhyLink';
 import DignityCheck from '../components/seva/DignityCheck';
 import LanguageToggle from '../components/seva/LanguageToggle';
@@ -285,6 +287,8 @@ export default function PostNeed() {
               {t('Read the card aloud, in their language, before it goes out. Change anything they did not say.')}
               <WhyLink rule="community-confirmation" />
             </p>
+            <ReadAloud className="mt-3" language={language} speech={capabilities ? capabilities.speech : undefined}
+              text={readBackOf(form, original, language)} />
             <label className="mt-4 flex cursor-pointer items-start gap-3 text-base text-ink">
               <input
                 type="checkbox"

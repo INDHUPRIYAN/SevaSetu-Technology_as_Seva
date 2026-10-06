@@ -160,6 +160,8 @@ async function reloadUntil(page, locator, tries = 3) {
       tag: (await lakshmi.locator('#need-interests').inputValue()).split(',')[0].trim().toLowerCase(),
     };
     await lakshmi.getByText('Please read this back to the community.').waitFor();
+    // Read It Aloud sits on the read-back step; with no speech provider here, the browser's own voice is offered
+    const readAloud = await lakshmi.getByTestId('read-aloud').isVisible();
     await lakshmi.getByText(/they confirmed it/).click();
     const lockedWithoutConsent = await publish.isDisabled();        // the community alone is not enough
     await lakshmi.getByText(/I consent to publishing this need/).click();
@@ -167,8 +169,8 @@ async function reloadUntil(page, locator, tries = 3) {
     await lakshmi.waitForURL(u => u.pathname === '/coordinator');
     await lakshmi.getByText(posted.title).first().waitFor();
     check('U13 post a need (VoiceBridge, warnings, read-back, consent, publish)',
-      tamilQuestion && oneQuestion && liveCard > 0 && noQuestion && warnings >= 2 && lockedBeforeTick && lockedWithoutConsent,
-      `tamil question ${tamilQuestion}, one question ${oneQuestion}, gaps marked ${liveCard}, complete sentence had no gaps ${noQuestion}, warnings ${warnings}, locked before ticks ${lockedBeforeTick}, locked without consent ${lockedWithoutConsent}`);
+      tamilQuestion && oneQuestion && liveCard > 0 && noQuestion && warnings >= 2 && lockedBeforeTick && lockedWithoutConsent && readAloud,
+      `tamil question ${tamilQuestion}, one question ${oneQuestion}, gaps marked ${liveCard}, complete sentence had no gaps ${noQuestion}, read aloud ${readAloud}, warnings ${warnings}, locked before ticks ${lockedBeforeTick}, locked without consent ${lockedWithoutConsent}`);
   });
 
   // U16 — the published need reaches a volunteer's search

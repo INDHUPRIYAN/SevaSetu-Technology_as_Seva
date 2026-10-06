@@ -32,6 +32,32 @@ export function splitTags(text) {
   return [...new Set(String(text || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean))];
 }
 
+// The read-back: the whole card as it stands, in a few spoken sentences. The card's own words stay as
+// written (English, or the coordinator's), with the scaffolding in the selected language.
+const READ = {
+  en: { need: 'Need', place: 'Place', every: 'Every', from: 'from', to: 'to', weeks: 'for {n} weeks', serve: 'How to serve the group well', learn: 'A volunteer will learn', said: 'In the community’s words' },
+  ta: { need: 'தேவை', place: 'இடம்', every: 'ஒவ்வொரு', from: 'முதல்', to: 'வரை', weeks: '{n} வாரங்களுக்கு', serve: 'குழுவிற்கு நன்றாகச் சேவை செய்வது எப்படி', learn: 'தன்னார்வலர் கற்றுக்கொள்வது', said: 'சமூகத்தின் வார்த்தைகளில்' },
+  hi: { need: 'ज़रूरत', place: 'जगह', every: 'हर', from: 'से', to: 'तक', weeks: '{n} हफ़्तों के लिए', serve: 'समूह की अच्छी सेवा कैसे करें', learn: 'एक स्वयंसेवक सीखेगा', said: 'समुदाय के शब्दों में' },
+};
+export function readBackOf(form, original, language = 'en') {
+  const r = READ[language] || READ.en;
+  const f = form || {};
+  const parts = [
+    original?.text && `${r.said}: ${original.text}`,
+    f.title && `${r.need}: ${f.title}.`,
+    f.want && `${f.want}`,
+    f.place && `${r.place}: ${f.place}.`,
+    f.day && (language === 'ta'
+      ? `${r.every} ${f.day}${f.start ? ` ${f.start} ${r.from}` : ''}${f.end ? ` ${f.end} ${r.to}` : ''}${f.weeks ? `, ${r.weeks.replace('{n}', f.weeks)}` : ''}.`
+      : language === 'hi'
+        ? `${r.every} ${f.day}${f.start ? ` ${f.start} ${r.from}` : ''}${f.end ? ` ${f.end} ${r.to}` : ''}${f.weeks ? `, ${r.weeks.replace('{n}', f.weeks)}` : ''}.`
+        : `${r.every} ${f.day}${f.start ? ` ${r.from} ${f.start}` : ''}${f.end ? ` ${r.to} ${f.end}` : ''}${f.weeks ? `, ${r.weeks.replace('{n}', f.weeks)}` : ''}.`),
+    f.serveUsWell && `${r.serve}: ${f.serveUsWell}`,
+    f.youWillLearn && `${r.learn}: ${f.youWillLearn}`,
+  ];
+  return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
 export function draftToForm(draft = {}) {
   const rhythm = draft.rhythm || {};
   return {
