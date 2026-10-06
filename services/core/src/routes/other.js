@@ -63,7 +63,7 @@ coordinator.get('/overview', async (req, res) => {
 
   ok(res, {
     needs: needs.map(n => ({
-      _id: n._id, title: n.title, status: n.status, rhythm: n.rhythm, place: n.place, orgName: n.orgId?.name,
+      _id: n._id, title: n.title, status: n.status, rhythm: n.rhythm, place: n.place, weeks: n.weeks, orgName: n.orgId?.name,
     })),
     pendingVisits: pending.map(v => ({
       _id: v._id,

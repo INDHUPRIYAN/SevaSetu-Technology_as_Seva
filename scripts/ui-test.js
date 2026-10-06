@@ -119,21 +119,37 @@ async function reloadUntil(page, locator, tries = 3) {
   // Demo step 2 — the coordinator posts a need: privacy warnings, AI or fallback draft, read-back, publish
   const lakshmi = await person('Lakshmi');
   let posted = null;
-  await attempt('U13 post a need (draft, warnings, read-back, publish)', async () => {
+  await attempt('U13 post a need (VoiceBridge, warnings, read-back, publish)', async () => {
     await lakshmi.goto(WEB + '/coordinator/post-need');
-    await lakshmi.getByRole('radio', { name: 'English' }).check({ force: true });     // the draft language, not the UI toggle
+    // VoiceBridge in Tamil first: a vague sentence gets ONE question, in Tamil; the card builds live
+    await lakshmi.getByRole('radio', { name: /தமிழ்/ }).check({ force: true });
     const words = lakshmi.locator('#need-words');
+    await words.fill('பள்ளி குழந்தைகளுக்கு ஆங்கிலம் படிக்க உதவி வேண்டும்');
+    await lakshmi.getByRole('button', { name: 'Send' }).click();
+    const prompt = lakshmi.getByTestId('voicebridge-prompt');
+    await prompt.getByText(/[஀-௿]/).waitFor({ timeout: 20000 });
+    const tamilQuestion = /[஀-௿]/.test(await prompt.innerText()) && /\?/.test(await prompt.innerText());
+    const oneQuestion = await lakshmi.getByText(/Question 1 of 3/).isVisible();
+    const liveCard = await lakshmi.getByTestId('live-card').locator('[data-empty="true"]').count();
+    await lakshmi.reload();                                                          // start the English card afresh
+    await lakshmi.getByRole('radio', { name: 'English' }).check({ force: true });     // the draft language, not the UI toggle
     await words.fill('Ravi, a poor boy, his father\'s income is Rs 5000, wants help with English on Saturday.');
-    await lakshmi.getByRole('button', { name: 'Make draft' }).click();
+    await lakshmi.getByRole('button', { name: 'Send' }).click();
+    await lakshmi.getByRole('button', { name: 'Check the card' }).click();
     await lakshmi.getByTestId('dignity-check').locator('mark').first().waitFor({ timeout: 20000 });
     const warnings = await lakshmi.getByTestId('dignity-check').locator('mark').count();
     await lakshmi.getByTestId('dignity-check').getByText('Suggested', { exact: true }).first().waitFor();
     await lakshmi.getByTestId('dignity-check').getByRole('button', { name: 'Use this' }).first().click();
     const rewritten = await lakshmi.locator('#need-original').inputValue();
     if (/Ravi|poor|5000/.test(rewritten)) throw new Error(`the rewrite was not used: ${rewritten}`);
-    await lakshmi.getByRole('button', { name: 'Start again' }).click();
-    await words.fill('12 students of class 6 to 8 want help reading English aloud, Saturday mornings 10:30 to 12 at the government school in Kanchipuram.');
-    await lakshmi.getByRole('button', { name: 'Make draft' }).click();
+    await lakshmi.reload();
+    await lakshmi.getByRole('radio', { name: 'English' }).check({ force: true });
+    // one complete sentence: no question, straight to the card
+    await words.fill('12 students of class 6 to 8 want help reading English aloud at the Government School in Kanchipuram, every Saturday 10:30 am to 12, for 4 weeks. Volunteers should let them choose the story. A volunteer will learn to wait.');
+    await lakshmi.getByRole('button', { name: 'Send' }).click();
+    await lakshmi.getByText('Nothing more is needed').waitFor({ timeout: 20000 });
+    const noQuestion = (await lakshmi.getByTestId('live-card').locator('[data-empty="true"]').count()) === 0;
+    await lakshmi.getByRole('button', { name: 'Check the card' }).click();
     await lakshmi.locator('#need-title').waitFor({ timeout: 20000 });
     await fits(lakshmi);
     const publish = lakshmi.getByRole('button', { name: 'Publish need' });
@@ -150,8 +166,9 @@ async function reloadUntil(page, locator, tries = 3) {
     await publish.click();
     await lakshmi.waitForURL(u => u.pathname === '/coordinator');
     await lakshmi.getByText(posted.title).first().waitFor();
-    check('U13 post a need (draft, warnings, read-back, consent, publish)', warnings >= 2 && lockedBeforeTick && lockedWithoutConsent,
-      `warnings ${warnings}, locked before ticks ${lockedBeforeTick}, locked without consent ${lockedWithoutConsent}`);
+    check('U13 post a need (VoiceBridge, warnings, read-back, consent, publish)',
+      tamilQuestion && oneQuestion && liveCard > 0 && noQuestion && warnings >= 2 && lockedBeforeTick && lockedWithoutConsent,
+      `tamil question ${tamilQuestion}, one question ${oneQuestion}, gaps marked ${liveCard}, complete sentence had no gaps ${noQuestion}, warnings ${warnings}, locked before ticks ${lockedBeforeTick}, locked without consent ${lockedWithoutConsent}`);
   });
 
   // U16 — the published need reaches a volunteer's search

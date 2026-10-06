@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const { bridgeRouter } = require('./routes/bridge');
 const { aiRouter } = require('./routes/ai');
+const { voicebridgeRouter } = require('./routes/voicebridge');
 const { loadVerified } = require('./teachings');
 
 function createApp(deps = {}) {
@@ -21,13 +22,17 @@ function createApp(deps = {}) {
     translate: language.translate,
     transcribe: language.transcribe,
     speak: language.speak,
+    llmConfigured: llm.isConfigured,
+    languageConfigured: language.isConfigured,
     loadWisdom: loadVerified,
     draftTimeoutMs: Number(process.env.DRAFT_TIMEOUT_MS) || 8000,       // never wait more than 8 s on stage
     translateTimeoutMs: Number(process.env.TRANSLATE_TIMEOUT_MS) || 4000,
     ...deps,
   };
   app.use('/api/bridge', bridgeRouter(providers));
-  app.use('/api/bridge', aiRouter({ ...providers, aiTimeoutMs: providers.aiTimeoutMs || providers.draftTimeoutMs }));
+  const aiTimeoutMs = providers.aiTimeoutMs || providers.draftTimeoutMs;
+  app.use('/api/bridge', aiRouter({ ...providers, aiTimeoutMs }));
+  app.use('/api/bridge', voicebridgeRouter({ ...providers, aiTimeoutMs }));
 
   app.use((req, res) => res.status(404).json({ error: { message: 'Not found' } }));
 

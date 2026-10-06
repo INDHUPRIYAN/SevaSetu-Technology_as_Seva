@@ -222,6 +222,20 @@ async function login(userId) {
       && seenByVol.data?.communityWords?.language === 'ta' && seenByVol.data?.communityWords?.text === 'சனிக்கிழமை காலை இப்போது எங்களுடையது என்றார்கள்.',
     `volunteer ${wByVol.status}, money ${wMoney.status}, avoid ${wAvoid.status}, unchecked ${wUnchecked.status}, name flags ${wName.data?.flags?.length}, ok ${wOk.status} ${JSON.stringify(wOk.error || '')}, twice ${wTwice.status}, seen ${JSON.stringify(seenByVol.data?.communityWords)}`);
 
+  // VoiceBridge through the gateway: coordinators only; with no key the rules answer (source "rules"), one
+  // question at a time, in the selected language; the context is this coordinator's own cards and nothing personal
+  const vbByVol = await call('POST', '/api/bridge/voicebridge', { token: VOL, body: { language: 'ta', turns: [{ role: 'coordinator', text: 'உதவி' }] } });
+  const vb = await call('POST', '/api/bridge/voicebridge', { token: COORD, body: { language: 'ta', turns: [{ role: 'coordinator', text: 'பள்ளி குழந்தைகளுக்கு ஆங்கிலம் படிக்க உதவி வேண்டும்' }], draft: null, context: {} } });
+  const overview = await call('GET', '/api/coordinator/overview', { token: COORD });
+  const ctxCards = (overview.data?.needs || []).slice(0, 5);
+  const seededOrPosted = ctxCards.every(n => n.title && n.rhythm && typeof n.weeks === 'number');
+  const ctxKeys = new Set(ctxCards.flatMap(n => Object.keys(n)));
+  check('X22 voicebridge: volunteers 403; no key → rules, one Tamil question; context = own cards, no personal fields',
+    vbByVol.status === 403 && vb.status === 200 && vb.data?.source === 'rules' && vb.data?.question?.field === 'place'
+      && /[஀-௿]/.test(vb.data?.question?.text || '') && ctxCards.length > 0 && seededOrPosted
+      && ![...ctxKeys].some(k => /^(name|age|income|caste|religion|health|photo|phone|address)$/i.test(k)),
+    `volunteer ${vbByVol.status}, status ${vb.status}, source ${vb.data?.source}, question ${JSON.stringify(vb.data?.question)}, context keys ${[...ctxKeys]}`);
+
   // The private diary through the gateway: only the writer, even with faked headers
   const ARJUN = await login(ids.users.seededVolunteer);
   const diary = token => call('GET', `/api/reflect/entries?commitmentId=${ids.commitments.seeded}`, { token, headers: { 'x-user-id': ids.users.seededVolunteer } });

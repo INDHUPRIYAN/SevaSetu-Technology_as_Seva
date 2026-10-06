@@ -1,8 +1,9 @@
-// /coordinator/post-need — the Seva Bridge (endpoint 28, then A's endpoint 6).
-// Step 1: language + say or type the need → Make draft. Step 2: edit every field, with the Dignity Check
-// over the card and the original words. Step 3: tick "I read this back…" → Publish. The AI never
+// /coordinator/post-need — the Seva Bridge (VoiceBridge, then A's endpoint 6).
+// Step 1: language, then speak or type naturally; the app asks only what is missing (one question at a
+// time, at most three) and the card builds live (VoiceBridge). Step 2: edit every field, with the Dignity
+// Check over the card and the original words. Step 3: tick "I read this back…" → Publish. The AI never
 // publishes; a person does. The original words are stored with the need, in their language.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { toast } from '../lib/toast';
@@ -10,7 +11,7 @@ import { useAuth } from '../lib/auth';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
-import VoiceInput from '../components/seva/VoiceInput';
+import VoiceBridge from '../components/seva/VoiceBridge';
 import WhyLink from '../components/seva/WhyLink';
 import DignityCheck from '../components/seva/DignityCheck';
 import LanguageToggle from '../components/seva/LanguageToggle';
@@ -60,11 +61,24 @@ export default function PostNeed() {
   const navigate = useNavigate();
 
   const [language, setLanguage] = useState('ta');
-  const [words, setWords] = useState('');
-  const [drafting, setDrafting] = useState(false);
-  const [draftError, setDraftError] = useState('');
-  const [result, setResult] = useState(null);          // { source }
+  const [result, setResult] = useState(null);          // { source: 'ai' | 'rules', readBack }
   const [original, setOriginal] = useState(null);      // { text, language }: the words as said, kept with the need
+  // what the bridge has: a model (labels say "Suggested") and a speech provider (else the browser's own)
+  const [capabilities, setCapabilities] = useState(null);
+  // context for VoiceBridge: this coordinator's own last 5 cards, from the overview (no new store)
+  const [context, setContext] = useState({ recentCards: [] });
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve(api.get('/api/bridge/capabilities')).then(c => alive && c && setCapabilities(c)).catch(() => {});
+    Promise.resolve(api.get('/api/coordinator/overview')).then(o => {
+      if (!alive || !o?.needs) return;
+      setContext({
+        orgName: o.needs[0]?.orgName || '',
+        recentCards: o.needs.slice(0, 5).map(n => ({ _id: n._id, title: n.title, place: n.place, rhythm: n.rhythm, weeks: n.weeks })),
+      });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [form, setForm] = useState(null);
   const [touched, setTouched] = useState(false);
   const [readBack, setReadBack] = useState(false);          // the community heard it and confirmed
@@ -75,25 +89,17 @@ export default function PostNeed() {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'coordinator') return <Navigate to="/" replace />;
 
-  async function makeDraft(e) {
-    e.preventDefault();
-    if (!words.trim() || drafting) return;
-    setDrafting(true);
-    setDraftError('');
-    try {
-      const data = await api.post('/api/bridge/draft-need', { text: words, language });
-      setResult({ source: data.source });
-      setOriginal({ text: words.trim(), language });
-      setForm(draftToForm(data.draft));
-      setTouched(false);
-      setReadBack(false);
-      setConsent(false);
-      setPublishError('');
-    } catch (err) {
-      setDraftError(err?.message || t('We could not make a draft just now. Please try again.'));
-    } finally {
-      setDrafting(false);
-    }
+  // VoiceBridge hands over the card it built; any field still missing is marked for typing
+  function onCard({ draft, original: said, missing, source, readBack: spoken }) {
+    const next = draftToForm(draft);
+    if (!draft.weeks) next.weeks = '';                 // never a silent default: the coordinator types it
+    setResult({ source: source === 'ai' ? 'ai' : 'rules', readBack: spoken || '' });
+    setOriginal(said);
+    setForm(next);
+    setTouched(missing.length > 0);
+    setReadBack(false);
+    setConsent(false);
+    setPublishError('');
   }
 
   const errors = form ? validateForm(form) : {};
@@ -150,9 +156,8 @@ export default function PostNeed() {
       <LanguageToggle className="mt-3" />
       <Steps step={step} />
 
-      {!form && (
+      <div hidden={Boolean(form)}>
         <Card className="mt-5 p-4 @2xl:p-6">
-          <form onSubmit={makeDraft}>
             <fieldset>
               <legend className="mb-2 text-sm font-semibold text-ink">{t('Language')}</legend>
               <div className="flex flex-wrap gap-2">
@@ -178,33 +183,9 @@ export default function PostNeed() {
                 ))}
               </div>
             </fieldset>
-
-            <div className="mt-5">
-              <VoiceInput
-                id="need-words"
-                label={t('What does the community need?')}
-                hint={t('Describe the group, the day, the time and the place. Please do not name anyone.')}
-                value={words}
-                onChange={setWords}
-                lang={language}
-                rows={6}
-                placeholder={language === 'ta'
-                  ? 'எ.கா. 6 முதல் 8 ஆம் வகுப்பு மாணவர்கள் 12 பேருக்கு…'
-                  : 'e.g. 12 students of class 6 to 8 want help reading English aloud…'}
-              />
-            </div>
-
-            {draftError && <p className="mt-3 text-sm font-medium text-ember" role="alert">{draftError}</p>}
-
-            <div className="mt-4 flex justify-end">
-              <Button type="submit" disabled={!words.trim() || drafting} className="w-full @md:w-auto">
-                {drafting && <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />}
-                {t(drafting ? 'Making the draft…' : 'Make draft')}
-              </Button>
-            </div>
-          </form>
         </Card>
-      )}
+        <VoiceBridge language={language} context={context} speech={capabilities ? capabilities.speech : undefined} onCard={onCard} />
+      </div>
 
       {form && (
         <form onSubmit={publish} noValidate className="mt-5 flex flex-col gap-5">
@@ -222,12 +203,11 @@ export default function PostNeed() {
               : setForm(f => ({ ...f, [key]: rewrite })))}
           />
 
-          {result.source === 'ai' && (
+          {result.source === 'ai' ? (
             <p className="text-xs font-semibold tracking-wide text-ember uppercase">{t('Suggested draft — please check every field')}</p>
-          )}
-          {result.source === 'fallback' && (
+          ) : (
             <p className="rounded-2xl bg-peach-soft px-4 py-3 text-sm text-ink-soft">
-              {t('The drafting helper is resting, so this is a sample card. Please change every field to match what the community said.')}
+              {t('Built from your words by simple rules, with no AI. Please check every field; any marked field still needs you.')}
             </p>
           )}
 

@@ -32,6 +32,13 @@ const RULES = [
   {
     kind: 'money',
     why: 'Mentions money or income. A need card never carries anyone’s money details.',
+    // "family earns 5000", "father makes Rs 8000 a month"
+    pattern: /(?:\b(?:his|her|their)\s+)?(?:\b(?:father|mother|parents?|family)\s+)?\b(?:earns?|earning|makes)\s+(?:only\s+|about\s+|around\s+)?(?:₹|rs\.?\s*|rupees\s+|inr\s+)?[\d,]*\d(?:\s*(?:rupees|rs|a month|per month|monthly))?/gi,
+    replace: '',
+  },
+  {
+    kind: 'money',
+    why: 'Mentions money or income. A need card never carries anyone’s money details.',
     pattern: /(?:\b(?:his|her|their)\s+)?(?:\b(?:father|mother|parent|family)(?:'s)?\s+)?(?:\bmonthly\s+)?\b(?:income|salary|earnings)\b(?:\s+(?:is|of|was))?(?:\s*(?:₹|rs\.?|rupees|inr))?\s*[\d,]*\d(?:\s*(?:rupees|rs))?|(?:₹|\brs\.?|\binr)\s*[\d,]*\d|\b\d[\d,]*\s*(?:rupees|rs)\b|\b(?:income|salary|salaries|earnings)\b/gi,
     replace: '',
   },

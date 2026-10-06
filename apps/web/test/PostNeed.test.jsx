@@ -34,19 +34,27 @@ function dignity(text) {
 
 const needsCalls = () => api.post.mock.calls.filter(([url]) => url === '/api/needs');
 
-function mockBridge({ privacyFlags = [], source = 'ai', draft = DRAFT } = {}) {
+// The VoiceBridge stand-in answers every turn with the whole draft and nothing missing (one complete sentence)
+function mockBridge({ privacyFlags = [], source = 'ai', draft = DRAFT, missing = [], question = null } = {}) {
+  api.get.mockImplementation(url => {
+    if (url === '/api/bridge/capabilities') return Promise.resolve({ llm: source === 'ai', speech: false });
+    if (url === '/api/coordinator/overview') return Promise.resolve({ needs: [{ _id: 'n0', title: 'Earlier card', place: 'Government School', rhythm: { day: 'Saturday' }, weeks: 4, orgName: 'Govt School' }] });
+    return Promise.reject(new Error(url));
+  });
   api.post.mockImplementation((url, body) => {
-    if (url === '/api/bridge/draft-need') return Promise.resolve({ draft, privacyFlags, source });
+    if (url === '/api/bridge/voicebridge') return Promise.resolve({ draft, missing, question, readBack: 'Read back.', relatedCardId: null, privacyFlags, source });
     if (url === '/api/bridge/dignity-check') return Promise.resolve(dignity(body.text));
     if (url === '/api/needs') return Promise.resolve({ _id: 'n1', ...draft, status: 'open' });
     return Promise.reject(new Error(url));
   });
 }
 
+// say one sentence, then take the card to the form
 async function makeDraft(text = '12 students want help reading English aloud on Saturday mornings', lang = 'English') {
   await userEvent.click(screen.getByRole('radio', { name: new RegExp(lang) }));   // the draft language, not the UI toggle
   await userEvent.type(screen.getByLabelText('What does the community need?'), text);
-  await userEvent.click(screen.getByRole('button', { name: 'Make draft' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Check the card' }));
   return screen.findByRole('heading', { name: 'Check the card' });
 }
 
@@ -63,20 +71,54 @@ describe('Post a Need', () => {
     expect(screen.getByText('Login page')).toBeInTheDocument();
   });
 
-  it('step 1: Tamil is picked first; "Make draft" waits for words; the mic box is the VoiceInput', () => {
+  it('step 1: Tamil is picked first; "Send" waits for words; the mic box is the VoiceInput; no card yet', () => {
     signIn(COORDINATOR);
+    mockBridge();
     open();
     expect(screen.getByRole('radio', { name: /தமிழ்/ })).toBeChecked();
-    expect(screen.getByRole('button', { name: 'Make draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     expect(screen.getByLabelText('What does the community need?')).toHaveAttribute('lang', 'ta');
+    expect(screen.queryByRole('button', { name: 'Check the card' })).not.toBeInTheDocument();
   });
 
-  it('U13: Make draft sends the words and language, then every field is filled and editable', async () => {
+  it('VoiceBridge: a vague sentence gets ONE question in the language; the card builds live with the gaps marked; the next answer is sent with the turns and draft', async () => {
+    signIn(COORDINATOR);
+    const partial = { ...DRAFT, place: '', weeks: 0, serveUsWell: '' };
+    mockBridge({ draft: partial, missing: ['place', 'weeks', 'serveUsWell'], question: { field: 'place', text: 'இது எங்கே நடக்கும்?' }, source: 'rules' });
+    open();
+    await userEvent.type(screen.getByLabelText('What does the community need?'), 'குழந்தைகளுக்கு உதவி');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByTestId('voicebridge-prompt')).toHaveTextContent('இது எங்கே நடக்கும்?');
+    expect(screen.getByText('Question 1 of 3', { exact: false })).toBeInTheDocument();
+    const card = screen.getByTestId('live-card');
+    expect(within(card).getByText('Built from your words')).toBeInTheDocument();
+    expect(card.querySelector('[data-field="place"]')).toHaveAttribute('data-empty', 'true');
+    expect(card.querySelector('[data-field="weeks"]')).toHaveAttribute('data-empty', 'true');
+    expect(card.querySelector('[data-field="day"]')).toHaveAttribute('data-empty', 'false');
+    expect(screen.getByLabelText('Your answer')).toHaveValue('');                            // the box clears for the answer
+
+    await userEvent.type(screen.getByLabelText('Your answer'), 'அரசுப் பள்ளி');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const [, body] = api.post.mock.calls.filter(([url]) => url === '/api/bridge/voicebridge').at(-1);
+    expect(body.language).toBe('ta');
+    expect(body.draft).toEqual(partial);
+    expect(body.turns.map(x => x.role)).toEqual(['coordinator', 'app', 'coordinator']);
+    expect(body.turns[1]).toMatchObject({ field: 'place', text: 'இது எங்கே நடக்கும்?' });
+    expect(body.context.recentCards).toEqual([{ _id: 'n0', title: 'Earlier card', place: 'Government School', rhythm: { day: 'Saturday' }, weeks: 4 }]);
+    // the form marks the still-missing fields for typing
+    await userEvent.click(screen.getByRole('button', { name: 'Check the card' }));
+    expect(await screen.findByText('Please say where it happens')).toBeInTheDocument();
+    expect(screen.getByLabelText('Weeks')).toHaveValue(null);
+  });
+
+  it('U13: the sentence goes to VoiceBridge with the language, then every field is filled and editable', async () => {
     signIn(COORDINATOR);
     mockBridge();
     open();
     await makeDraft('Tamil words here', 'English');
-    expect(api.post).toHaveBeenCalledWith('/api/bridge/draft-need', { text: 'Tamil words here', language: 'en' });
+    expect(api.post).toHaveBeenCalledWith('/api/bridge/voicebridge', expect.objectContaining({
+      language: 'en', draft: null, turns: [{ role: 'coordinator', text: 'Tamil words here' }],
+    }));
 
     expect(screen.getByLabelText('Title')).toHaveValue('English Reading Support');
     expect(screen.getByLabelText('What we want')).toHaveValue(DRAFT.want);
@@ -119,17 +161,26 @@ describe('Post a Need', () => {
     expect(screen.getByLabelText('In the community’s words')).toHaveValue('A group of students wants help.');
 
     await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Make draft' }));        // the words are kept
+    await userEvent.click(screen.getByRole('button', { name: 'Check the card' }));    // the conversation is kept
     await userEvent.click(await screen.findByRole('button', { name: 'Keep mine' }));
     expect(screen.getByLabelText('In the community’s words')).toHaveValue('poor boy Ravi, income 5000');
   });
 
-  it('a fallback draft says it is a sample to change', async () => {
+  it('with no AI the card says it was built by rules, and never says "Suggested"', async () => {
     signIn(COORDINATOR);
-    mockBridge({ source: 'fallback' });
+    mockBridge({ source: 'rules' });
     open();
     await makeDraft();
-    expect(screen.getByText(/this is a sample card/)).toBeInTheDocument();
+    expect(screen.getByText(/Built from your words by simple rules, with no AI/)).toBeInTheDocument();
+    expect(screen.queryByText(/Suggested draft/)).not.toBeInTheDocument();
+  });
+
+  it('with AI the card is labelled "Suggested — please review"', async () => {
+    signIn(COORDINATOR);
+    mockBridge({ source: 'ai' });
+    open();
+    await makeDraft();
+    expect(screen.getByText(/Suggested draft — please check every field/)).toBeInTheDocument();
   });
 
   async function confirmAndConsent() {
@@ -194,22 +245,24 @@ describe('Post a Need', () => {
     expect(screen.getByLabelText('Title')).toBeInTheDocument();
   });
 
-  it('a failed draft call keeps the words and says so', async () => {
+  it('a failed VoiceBridge call keeps the words and says so', async () => {
     signIn(COORDINATOR);
+    api.get.mockRejectedValue(new Error('offline'));
     api.post.mockRejectedValue({ message: 'Coordinators only' });
     open();
     await userEvent.type(screen.getByLabelText('What does the community need?'), 'words');
-    await userEvent.click(screen.getByRole('button', { name: 'Make draft' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Coordinators only');
     expect(screen.getByLabelText('What does the community need?')).toHaveValue('words');
   });
 
-  it('Start again goes back to step 1 with the words kept', async () => {
+  it('Start again goes back to step 1 with the conversation kept', async () => {
     signIn(COORDINATOR);
     mockBridge();
     open();
     await makeDraft('my sentence');
     await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
-    expect(screen.getByLabelText('What does the community need?')).toHaveValue('my sentence');
+    expect(screen.getByText('my sentence')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check the card' })).toBeInTheDocument();
   });
 });
