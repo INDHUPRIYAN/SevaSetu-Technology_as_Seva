@@ -47,13 +47,13 @@ export default function TeachingFinder({ items }) {
       <div aria-live="polite">
         {state.status === 'done' && state.item && (
           <figure className="mt-4 rounded-2xl bg-peach-soft p-4" data-testid="found-teaching">
-            {state.source === 'ai' && <p className="text-xs font-semibold tracking-wide text-ember uppercase">Suggested</p>}
+            {state.source === 'ai' && <p className="text-xs font-semibold tracking-wide text-ember uppercase">Suggested — please review</p>}
             <blockquote className="mt-1 font-serif text-lg leading-snug text-ink italic break-words">“{state.item.text}”</blockquote>
             <figcaption className="mt-2 text-sm text-ink-soft">— Swami Vivekananda<span className="mt-0.5 block text-xs">{state.item.source}</span></figcaption>
           </figure>
         )}
         {state.status === 'done' && !state.item && (
-          <p className="mt-4 text-sm text-ink-soft">No checked teaching matches this yet. Try telling it in other words.</p>
+          <p className="mt-4 text-sm text-ink-soft">No verified teaching was found for this. Try telling it in other words.</p>
         )}
         {state.status === 'error' && <p className="mt-4 text-sm text-ember" role="alert">Could not search just now. Try again.</p>}
       </div>

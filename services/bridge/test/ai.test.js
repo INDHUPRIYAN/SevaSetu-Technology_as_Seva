@@ -207,3 +207,35 @@ describe('rules and data', () => {
     assert.equal(ruleMatch('anything at all', []), null);
   });
 });
+
+describe('4. Listening Guide gives questions only; 5. Teaching Finder gives a verified id or null', () => {
+  const COORD2 = { 'x-user-id': '650000000000000000000004', 'x-user-role': 'coordinator' };
+  it('a model "question" that assumes what the group lacks or really needs is dropped, and the fixed three are used', async () => {
+    const app = appWith({ callJSON: fake(async () => ({ questions: [
+      'What do you really need from a volunteer?',
+      'Why don\'t you ask the school for books?',
+      'They lack reading material, do they not?',
+    ] })) });
+    const res = await post(app, 'listening-guide', CARD, COORD2);
+    assert.deepEqual(res.body.data.questions, FALLBACK_QUESTIONS);
+    assert.equal(res.body.data.source, 'fallback');
+  });
+
+  it('a model answer with three open questions is used, labelled ai; a statement among them is not enough', async () => {
+    const good = ['What would you like a volunteer to know first?', 'What has helped the group so far?', 'What would a good session look like to you?'];
+    const app = appWith({ callJSON: fake(async () => ({ questions: good })) });
+    const res = await post(app, 'listening-guide', CARD, COORD2);
+    assert.deepEqual(res.body.data.questions, good);
+    assert.equal(res.body.data.source, 'ai');
+    const mixed = appWith({ callJSON: fake(async () => ({ questions: [good[0], good[1], 'The group needs more books.'] })) });
+    assert.equal((await post(mixed, 'listening-guide', CARD, COORD2)).body.data.source, 'fallback');
+  });
+
+  it('an id the model invents is never returned: only a verified id, or null', async () => {
+    const invented = appWith({ callJSON: fake(async () => ({ id: 'w99' })) });
+    const res = await post(invented, 'find-teaching', { situation: 'I had to wait and I got impatient today' }, COORD2);
+    assert.ok(res.body.data.id === null || WISDOM.some(w => w.id === res.body.data.id));
+    const picked = appWith({ callJSON: fake(async () => ({ id: 'w08' })) });
+    assert.equal((await post(picked, 'find-teaching', { situation: 'a hard day of work' }, COORD2)).body.data.id, 'w08');
+  });
+});

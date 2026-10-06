@@ -25,7 +25,7 @@ describe('ListeningGuide', () => {
     show(<ListeningGuide need={NEED} />);
     expect(await screen.findByText('What first?')).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
-    expect(screen.getByText('Suggested')).toBeInTheDocument();
+    expect(screen.getByText('Suggested — please review')).toBeInTheDocument();
     expect(api.post).toHaveBeenCalledWith('/api/bridge/listening-guide', expect.objectContaining({ title: NEED.title }));
   });
 
@@ -59,6 +59,6 @@ describe('TeachingFinder', () => {
     show(<TeachingFinder items={ITEMS} />);
     await userEvent.type(screen.getByLabelText(/Describe what happened/), 'something else');
     await userEvent.click(screen.getByRole('button', { name: /Find a teaching/ }));
-    expect(await screen.findByText(/No checked teaching matches this yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No verified teaching was found/)).toBeInTheDocument();
   });
 });

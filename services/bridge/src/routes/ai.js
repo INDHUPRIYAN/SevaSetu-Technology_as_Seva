@@ -50,6 +50,9 @@ const GUIDE_SCHEMA = {
   properties: { questions: { type: 'array', items: { type: 'string' } } },
 };
 
+// A question that carries an assumption about the group is not an open question
+const ASSUMES = /\b(really|actually|truly)\s+(need|want|lack)s?\b|\bthey\s+(lack|are\s+(poor|needy|helpless|backward))\b|\bwhy\s+(don't|do\s+not|can't|cannot)\s+(you|they)\b|\bshould(n't| not)?\s+(you|they)\b/i;
+
 // Used when the AI is off or its answer does not pass the checks
 const FALLBACK_QUESTIONS = [
   'What would you like a volunteer to know before they begin?',
@@ -141,7 +144,7 @@ function aiRouter({ callJSON, aiTimeoutMs, loadWisdom }) {
       const ai = await ask({ system: GUIDE_PROMPT, name: 'listening_guide', schema: GUIDE_SCHEMA }, card);
       const good = (Array.isArray(ai.questions) ? ai.questions : [])
         .map(text)
-        .filter(q => q.length >= 10 && q.length <= 160 && q.endsWith('?') && isClean(q));
+        .filter(q => q.length >= 10 && q.length <= 160 && q.endsWith('?') && isClean(q) && !ASSUMES.test(q));
       if (good.length >= 3) { questions = good.slice(0, 3); source = 'ai'; }
     } catch (e) { /* the three fixed questions */ }
 

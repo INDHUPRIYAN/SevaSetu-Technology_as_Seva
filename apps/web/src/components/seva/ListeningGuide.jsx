@@ -27,7 +27,7 @@ export default function ListeningGuide({ need, className = '' }) {
     <section aria-labelledby="listening-guide" className={`rounded-2xl bg-cream-100 p-4 ${className}`}>
       <h3 id="listening-guide" className="flex flex-wrap items-center gap-2 font-serif text-lg font-semibold text-ink-900">
         <MessageCircleQuestion size={18} className="text-saffron-500" /> Listening Guide
-        {guide?.source === 'ai' && <span className="text-xs font-semibold tracking-wide text-ember uppercase">Suggested</span>}
+        {guide?.source === 'ai' && <span className="text-xs font-semibold tracking-wide text-ember uppercase">Suggested — please review</span>}
       </h3>
       <p className="mt-1 text-sm text-ink-500">Three questions to ask. Then listen, and let them answer in their own time.</p>
       {!guide ? (
