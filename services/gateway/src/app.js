@@ -2,7 +2,6 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const PUBLIC = ['/api/auth/users', '/api/auth/demo-login'];   // no token needed
 
@@ -63,7 +62,9 @@ function createApp(options = {}) {
     return app;
   }
 
-  // forward everything else, path unchanged
+  // forward everything else, path unchanged. Loaded only here: the in-process setup (mono.js, the Vercel
+  // function) never proxies, and the package is ES-module-only, which some Node runtimes cannot require().
+  const { createProxyMiddleware } = require('http-proxy-middleware');
   app.use(createProxyMiddleware({
     target: process.env.CORE_URL,
     changeOrigin: true,

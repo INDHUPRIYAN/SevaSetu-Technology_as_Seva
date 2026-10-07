@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci --omit=dev",
+  "buildCommand": "echo \"backend only: the function is api/index.js\"",
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "seed/wisdom.json"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ]
+}

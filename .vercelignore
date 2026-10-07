@@ -1,0 +1,14 @@
+# The backend project (sevasetu-api) uploads only what the function needs. NEVER the root .env: the keys are
+# Vercel environment variables. The web app is a separate project deployed from apps/web.
+.env
+.env.*
+**/.env
+node_modules
+.git
+apps/web/*
+!apps/web/package.json
+docs
+screenshots
+scripts
+tests.http
+**/test
