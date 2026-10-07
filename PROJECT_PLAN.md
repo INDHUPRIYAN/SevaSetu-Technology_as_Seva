@@ -143,6 +143,7 @@ process as a fallback if a host misbehaves.
 | 24 | Then and Now: first entry vs latest |
 | 24b–c | Seal / read **my own** Sankalpa (one line per commitment, written once) |
 | 24d–e | Write / read **my own** "What did they give you?" (one per commitment, written at finish) |
+| 24g–h | A **private voice note** per week: the bytes the browser recorded go in and the same bytes come out, only to the owner. No transcript, no model, no speech service, ever. Then and Now plays the first beside the latest |
 | 25–26 | Wisdom of the day, wisdom by theme — verbatim quotes with their source |
 | 27 | "Why?" for a rule: verified teaching (or none) → interpretation → product decision |
 | 27b | A teaching for one moment (before-listen, commit, hard-day, continue): verified teaching → interpretation → practice. The non-attachment moments (declined, closed, finished) carry no quotation: plain words → practice |
@@ -275,7 +276,7 @@ These are enforced in code and covered by tests, not just hidden in the UI.
 2. **No hours, points, ranks, streaks or badges** anywhere, in data or on screen.
 3. **Dignity of the people served.** No names, ages, income, caste, religion, health or photos stored or shown.
    Words we avoid: poor, needy, beneficiary, donate.
-4. **The diary is private.** No other volunteer and no coordinator can read it. No AI, scoring or sentiment on diary text. The same holds for the Sankalpa and "What did they give you?".
+4. **The diary is private.** No other volunteer and no coordinator can read it. No AI, scoring or sentiment on diary text. The same holds for the Sankalpa, "What did they give you?" and the voice note, which is stored as recorded and never transcribed or sent to any service.
 5. **AI only drafts.** A coordinator edits, reads the card back, the community confirms, the coordinator consents, and only then publishes. "What the group wanted to say" goes through the Dignity Check and the coordinator's approval before it is saved; money and the words we avoid are refused outright.
 6. **Identity is never trusted from the browser.** The gateway strips and resets `x-user-*` headers.
 7. **Keys stay in `bridge`.** No Groq or Bhashini key in the frontend or in git.

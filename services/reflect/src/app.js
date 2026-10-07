@@ -9,7 +9,7 @@ function createApp(options = {}) {
   app.locals.timeZone = options.timeZone || process.env.WISDOM_TIME_ZONE || 'Asia/Kolkata';
 
   app.use(cors());
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: '3mb' }));          // a private voice note is up to 2 MB of audio, as base64
 
   app.get('/health', (req, res) => res.json({ ok: true, service: 'reflect' }));
 

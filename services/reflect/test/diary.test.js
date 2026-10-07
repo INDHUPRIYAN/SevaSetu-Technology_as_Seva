@@ -299,3 +299,42 @@ describe('24f. GET /api/reflect/my-seva — across commitments, owner only', () 
     }
   });
 });
+
+describe('24g–h. the private voice note: bytes in, the same bytes out, only for the owner; nothing derived', () => {
+  const WAV = Buffer.from('RIFF....WAVEfmt ' + 'x'.repeat(64)).toString('base64');
+  const put = (headers, body) => request(app).post('/api/reflect/voice').set(headers).send({ commitmentId: X, week: 2, mimeType: 'audio/webm', audioBase64: WAV, seconds: 7, ...body });
+  const get = (headers, week) => request(app).get('/api/reflect/voice').query({ commitmentId: X, ...(week ? { week } : {}) }).set(headers);
+
+  it('the owner records, lists and plays back exactly what was sent; recording again replaces it', async () => {
+    assert.equal((await put(VOL)).status, 201);
+    assert.equal((await put(VOL)).status, 200);                          // same week: replaced
+    const list = await get(VOL);
+    assert.deepEqual(list.body.data.map(n => n.week), [2]);
+    assert.equal(list.body.data[0].audioBase64, undefined, 'the list carries no audio');
+    const one = await get(VOL, 2);
+    assert.equal(one.body.data.audioBase64, WAV);
+    assert.equal(one.body.data.mimeType, 'audio/webm');
+    assert.deepEqual(Object.keys(one.body.data).sort(), ['audioBase64', 'createdAt', 'mimeType', 'seconds', 'week'], 'no transcript, text or score');
+  });
+
+  it('another volunteer, or a coordinator, sees nothing; a faked userId in the body is ignored', async () => {
+    await put(VOL, { userId: ids.users.circleMember });
+    assert.deepEqual((await get(VOL2)).body.data, []);
+    assert.equal((await get(VOL2, 2)).body.data, null);
+    assert.deepEqual((await get(COORD)).body.data, []);
+    assert.equal((await get(VOL, 2)).body.data?.audioBase64, WAV);
+  });
+
+  it('bad input is refused: no type, not base64, empty, too big; the owner can remove a note', async () => {
+    assert.equal((await put(VOL, { mimeType: 'text/plain' })).status, 400);
+    assert.equal((await put(VOL, { audioBase64: 'not base64!' })).status, 400);
+    assert.equal((await put(VOL, { audioBase64: '' })).status, 400);
+    const big = Buffer.alloc(2 * 1024 * 1024 + 1).toString('base64');
+    assert.equal((await put(VOL, { audioBase64: big })).status, 413);
+    await put(VOL);
+    assert.equal((await request(app).delete('/api/reflect/voice').query({ commitmentId: X, week: 2 }).set(VOL2)).status, 200);
+    assert.equal((await get(VOL, 2)).body.data?.audioBase64, WAV, 'another user cannot remove it');
+    await request(app).delete('/api/reflect/voice').query({ commitmentId: X, week: 2 }).set(VOL);
+    assert.equal((await get(VOL, 2)).body.data, null);
+  });
+});

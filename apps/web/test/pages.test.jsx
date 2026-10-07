@@ -20,6 +20,7 @@ function diaryApi({ week = 2, entries = [E1], commitmentError } = {}) {
       return commitmentError ? Promise.reject(commitmentError) : Promise.resolve({ _id: COMMITMENT, currentWeek: week, weeks: 4, need: { title: 'English Reading Support' } });
     if (url === '/api/reflect/question') return Promise.resolve(cfg.params.week === 1 ? Q1 : Q2);
     if (url === '/api/reflect/entries') return Promise.resolve(entries);
+    if (url === '/api/reflect/voice') return Promise.resolve(cfg?.params?.week ? null : []);   // no voice note yet
     return Promise.reject(new Error(`unexpected ${url}`));
   });
   api.post.mockImplementation((url, body) => Promise.resolve({
@@ -115,13 +116,13 @@ describe('Diary', () => {
     expect(screen.getByLabelText('Your answer')).toHaveValue('words');
   });
 
-  it('the diary has no mic: it is type-only, and every call it makes goes to the private reflect service', async () => {
+  it('the diary has no speech-to-text: words are typed, and every call it makes goes to the private reflect service', async () => {
     signIn(VOLUNTEER);
     diaryApi();
     const { container } = openDiary();
     await screen.findByLabelText('Your answer');
-    expect(screen.queryByRole('button', { name: /Speak/ })).not.toBeInTheDocument();
-    expect(container.querySelector('[aria-label*="Speak"], [aria-label*="record"], [data-testid="voice-input"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Speak/ })).not.toBeInTheDocument();      // no "speak instead of typing"
+    expect(container.querySelector('[aria-label*="Speak"], [data-testid="voice-input"]')).toBeNull();
     await userEvent.type(screen.getByLabelText('Your answer'), 'I kept correcting them again.');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Saved in your diary');
@@ -129,6 +130,32 @@ describe('Diary', () => {
     expect(urls.length).toBeGreaterThan(0);
     for (const url of urls) expect(url).toMatch(/^\/api\/(reflect|commitments)\//);
     expect(urls.some(u => u.includes('/api/bridge'))).toBe(false);
+  });
+
+  it('a private voice note: recorded in the browser, posted only to /api/reflect/voice as bytes, played back from the same bytes', async () => {
+    signIn(VOLUNTEER);
+    diaryApi();
+    // a browser that can record
+    const tracks = [{ stop: vi.fn() }];
+    navigator.mediaDevices = { getUserMedia: vi.fn(async () => ({ getTracks: () => tracks })) };
+    let recorder;
+    window.MediaRecorder = class { constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm;codecs=opus'; recorder = this; } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; this.ondataavailable({ data: new Blob(['abc'], { type: 'audio/webm' }) }); this.onstop(); } };
+    api.post.mockImplementation((url, body) => Promise.resolve(url === '/api/reflect/voice' ? { week: body.week, mimeType: body.mimeType, seconds: body.seconds, bytes: 3 } : {}));
+    openDiary();
+    await screen.findByLabelText('Your answer');
+    await userEvent.click(screen.getByRole('button', { name: 'Record a voice note' }));
+    await screen.findByRole('button', { name: /^Stop/ });
+    await userEvent.click(screen.getByRole('button', { name: /^Stop/ }));
+    await screen.findByTestId('voice-note-player');
+    const voicePost = api.post.mock.calls.find(([url]) => url === '/api/reflect/voice');
+    expect(voicePost).toBeTruthy();
+    expect(voicePost[1]).toMatchObject({ commitmentId: expect.any(String), week: 2, mimeType: 'audio/webm' });
+    expect(voicePost[1].audioBase64).toBe(btoa('abc'));
+    expect(Object.keys(voicePost[1])).not.toContain('text');
+    expect(api.post.mock.calls.some(([url]) => url.includes('/api/bridge'))).toBe(false);
+    expect(screen.getByTestId('voice-note-player').querySelector('audio').getAttribute('src')).toBe(`data:audio/webm;base64,${btoa('abc')}`);
+    delete window.MediaRecorder;
+    delete navigator.mediaDevices;
   });
 
   it('U12: no score, streak, badge, count, share button or photo upload', async () => {

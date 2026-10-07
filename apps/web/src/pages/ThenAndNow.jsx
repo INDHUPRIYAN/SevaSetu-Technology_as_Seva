@@ -9,6 +9,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
 import { Lock, Pen } from '../components/seva/icons';
+import { VoiceNotePlayer } from '../components/seva/VoiceNote';
 
 function SankalpaCard({ text }) {
   return (
@@ -44,6 +45,17 @@ function EntryCard({ label, entry, accent }) {
   );
 }
 
+// the first and the latest voice note, played back only here (the list has no audio; each note is fetched by week)
+async function voiceNotes(commitmentId) {
+  try {
+    const list = await api.get('/api/reflect/voice', { params: { commitmentId } });
+    if (!list?.length) return { first: null, latest: null };
+    const weeks = [list[0].week, list[list.length - 1].week];
+    const [first, latest] = await Promise.all(weeks.map(week => api.get('/api/reflect/voice', { params: { commitmentId, week } })));
+    return { first, latest: weeks[0] === weeks[1] ? null : latest };
+  } catch (e) { return { first: null, latest: null }; }
+}
+
 export default function ThenAndNow() {
   const { commitmentId } = useParams();
   const [state, setState] = useState({ status: 'loading' });
@@ -57,10 +69,12 @@ export default function ThenAndNow() {
       api.get('/api/reflect/sankalpa', { params: { commitmentId } }).catch(() => null),   // her words still show without it
       api.get('/api/reflect/received', { params: { commitmentId } }).catch(() => null),
       api.get(`/api/commitments/${commitmentId}`).catch(() => null),                        // for the community's words
+      voiceNotes(commitmentId),                                                              // her own voice notes: first week and latest
     ])
-      .then(([data, sankalpa, received, commitment]) => alive && setState({
+      .then(([data, sankalpa, received, commitment, voices]) => alive && setState({
         status: 'ready', first: data?.first || null, latest: data?.latest || null, sankalpa: sankalpa?.text || null,
         received: received?.text || null, communityWords: commitment?.communityWords || null,
+        voiceFirst: voices.first, voiceLatest: voices.latest,
       }))
       .catch(() => alive && setState({ status: 'error' }));
     return () => { alive = false; };
@@ -109,6 +123,13 @@ export default function ThenAndNow() {
             Open your diary
           </Link>
         </Card>
+      )}
+
+      {state.status === 'ready' && (state.voiceFirst || state.voiceLatest) && (
+        <div className="mt-4 grid gap-4 @2xl:grid-cols-2" data-testid="voice-then-and-now">
+          <VoiceNotePlayer note={state.voiceFirst} label={`Then · week ${state.voiceFirst?.week}`} />
+          {state.voiceLatest && <VoiceNotePlayer note={state.voiceLatest} label={`Now · week ${state.voiceLatest.week}`} />}
+        </div>
       )}
 
       {state.status === 'ready' && state.first && (

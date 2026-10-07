@@ -4,6 +4,7 @@ const Question = require('../models/Question');
 const Entry = require('../models/Entry');
 const Sankalpa = require('../models/Sankalpa');
 const Received = require('../models/Received');
+const VoiceNote = require('../models/VoiceNote');
 const { me } = require('../user');
 
 const QUESTION_COUNT = 5;                        // the five diary questions rotate week by week
@@ -96,6 +97,50 @@ router.get('/then-and-now', async (req, res) => {
   const picked = entries.length >= 2 ? [entries[0], entries[entries.length - 1]] : entries.slice(0, 1);
   const [first = null, latest = null] = await withQuestions(picked);
   res.json({ data: { first, latest } });
+});
+
+// 24g. A private voice note for one week: the bytes the browser recorded, kept as they are. No transcript is
+// made, no model or speech service ever receives it; only the person who recorded it can play it back.
+// Recording again in the same week replaces it.
+router.post('/voice', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.body?.commitmentId);
+  const week = parseWeek(req.body?.week);
+  const mimeType = typeof req.body?.mimeType === 'string' ? req.body.mimeType.trim().slice(0, 80) : '';
+  const base64 = typeof req.body?.audioBase64 === 'string' ? req.body.audioBase64 : '';
+  if (!commitmentId) return bad(res, 'commitmentId is needed');
+  if (!week) return bad(res, 'Please give the week (1 or more)');
+  if (!/^audio\/[\w.+-]+(;.*)?$/.test(mimeType)) return bad(res, 'The recording has no audio type');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) return bad(res, 'The recording must be base64 audio');
+  const audio = Buffer.from(base64, 'base64');
+  if (!audio.length) return bad(res, 'The recording is empty');
+  if (audio.length > VoiceNote.MAX_BYTES) return res.status(413).json({ error: { message: 'Please keep a voice note under a minute' } });
+  const seconds = Number.isFinite(Number(req.body?.seconds)) ? Math.max(0, Math.round(Number(req.body.seconds))) : null;
+  const filter = { userId: me(req).id, commitmentId, week };
+  const result = await VoiceNote.findOneAndUpdate(filter, { $set: { mimeType, audio, seconds } },
+    { upsert: true, returnDocument: 'after', includeResultMetadata: true });
+  res.status(result.lastErrorObject?.updatedExisting ? 200 : 201).json({ data: { week, mimeType, seconds, bytes: audio.length } });
+});
+
+// 24h. Which weeks have a voice note (no audio in the list), and one note's audio. Only the owner's.
+router.get('/voice', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.query.commitmentId);
+  if (!commitmentId) return bad(res, 'commitmentId is needed');
+  const week = parseWeek(req.query.week);
+  if (week) {
+    const note = await VoiceNote.findOne({ userId: me(req).id, commitmentId, week }).lean();
+    if (!note) return res.json({ data: null });
+    return res.json({ data: { week, mimeType: note.mimeType, seconds: note.seconds, audioBase64: note.audio.toString('base64'), createdAt: note.createdAt } });
+  }
+  const list = await VoiceNote.find({ userId: me(req).id, commitmentId }).sort({ week: 1 }).select('week mimeType seconds createdAt').lean();
+  res.json({ data: list.map(n => ({ week: n.week, mimeType: n.mimeType, seconds: n.seconds, createdAt: n.createdAt })) });
+});
+
+router.delete('/voice', async (req, res) => {
+  const commitmentId = commitmentIdFrom(req.query.commitmentId);
+  const week = parseWeek(req.query.week);
+  if (!commitmentId || !week) return bad(res, 'commitmentId and week are needed');
+  await VoiceNote.deleteOne({ userId: me(req).id, commitmentId, week });
+  res.json({ data: { week, deleted: true } });
 });
 
 // 24f. My Seva so far, across every commitment: the first entry ever written beside the latest, and every

@@ -10,6 +10,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/seva/PageHeader';
 import WhyLink from '../components/seva/WhyLink';
+import VoiceNote from '../components/seva/VoiceNote';
 import { Check, ChevronRight, Leaf, Lock, Pages } from '../components/seva/icons';
 
 const needTitleOf = c => c?.need?.title || c?.needTitle || c?.title || '';
@@ -188,6 +189,9 @@ export default function Diary() {
           </form>
           {hardDay && <HardDay earlier={entries.filter(x => x.week < week).at(-1)} />}
         </Card>
+
+        {/* a private voice note: the bytes go to the private reflect service and come back only to her */}
+        <VoiceNote commitmentId={commitmentId} week={week} />
 
         <div className="flex flex-col gap-5">
           <section aria-labelledby="past-entries">

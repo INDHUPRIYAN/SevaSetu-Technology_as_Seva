@@ -8,14 +8,15 @@ const Why = require('../services/reflect/src/models/Why');
 const Moment = require('../services/reflect/src/models/Moment');
 const Sankalpa = require('../services/reflect/src/models/Sankalpa');
 const Received = require('../services/reflect/src/models/Received');
+const VoiceNote = require('../services/reflect/src/models/VoiceNote');
 const { QUESTIONS, WHYS, MOMENTS, WISDOM, SEEDED_ENTRY, SEEDED_SANKALPA } = require('./reflect-data');
 
 const mongoose = Question.base;                  // the same mongoose the models were built with
 
 // Seeds the database mongoose is connected to. Used by the CLI below, the tests and the dev stack.
 async function seedReflect() {
-  await Promise.all([Question, Entry, Wisdom, Why, Moment, Sankalpa, Received].map(m => m.deleteMany({})));
-  await Promise.all([Question, Entry, Wisdom, Why, Moment, Sankalpa, Received].map(m => m.init()));     // unique indexes exist
+  await Promise.all([Question, Entry, Wisdom, Why, Moment, Sankalpa, Received, VoiceNote].map(m => m.deleteMany({})));
+  await Promise.all([Question, Entry, Wisdom, Why, Moment, Sankalpa, Received, VoiceNote].map(m => m.init()));     // unique indexes exist
 
   const questions = await Question.insertMany(QUESTIONS);
   // one by one, so the _id order (which "today" uses) is the order written in the data file

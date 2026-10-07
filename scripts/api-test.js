@@ -275,14 +275,21 @@ async function login(userId) {
   const gatewaySrc = read('services/gateway/src/app.js');
   const routed = /url\.startsWith\('\/api\/reflect'\)[^\n]*return 'reflect'/.test(gatewaySrc);
   const diaryScreens = ['apps/web/src/pages/Diary.jsx', 'apps/web/src/pages/ThenAndNow.jsx'].map(read).join('\n');
-  const noSpeech = !/VoiceInput|SpeechRecognition|speechSynthesis|MediaRecorder|\/api\/bridge/.test(diaryScreens);
+  // the diary may record a private voice note in the browser (MediaRecorder) for the reflect service, but never
+  // through VoiceInput / speech recognition / the bridge
+  const noSpeech = !/VoiceInput|SpeechRecognition|speechSynthesis|\/api\/bridge|\/transcribe|\/speak/.test(diaryScreens + read('apps/web/src/components/seva/VoiceNote.jsx'));
+  // a voice note through the gateway: the owner gets the same bytes back; nobody else gets anything
+  const wav = Buffer.from('RIFF....WAVEfmt ' + 'x'.repeat(32)).toString('base64');
+  const voiceIn = await call('POST', '/api/reflect/voice', { token: ARJUN, body: { commitmentId: ids.commitments.seeded, week: 2, mimeType: 'audio/webm', audioBase64: wav, seconds: 3 } });
+  const [voiceMine, voiceOther, voiceCoord] = await Promise.all([ARJUN, MEMBER, COORD].map(token => call('GET', `/api/reflect/voice?commitmentId=${ids.commitments.seeded}&week=2`, { token, headers: { 'x-user-id': ids.users.seededVolunteer } })));
+  const voiceOk = voiceIn.status === 201 && voiceMine.data?.audioBase64 === wav && voiceOther.data === null && voiceCoord.data === null && !Object.keys(voiceMine.data || {}).some(k => /text|transcript|summary|score/i.test(k));
   const rawWords = 'poor boy Ravi, income 5000: I got impatient today.';
   const savedEntry = await call('POST', '/api/reflect/entries', { token: ARJUN, body: { commitmentId: ids.commitments.seeded, week: 3, text: rawWords } });
   const savedKeys = Object.keys(savedEntry.data || {});
-  check('X23 the diary never meets a model or a speech service',
-    noOutbound && routed && noSpeech && savedEntry.status < 300 && savedEntry.data?.text === rawWords
+  check('X23 the diary (words and voice note) never meets a model or a speech service; the voice note is private',
+    noOutbound && routed && noSpeech && voiceOk && savedEntry.status < 300 && savedEntry.data?.text === rawWords
       && !savedKeys.some(k => /flag|rewrite|suggest|sentiment|score|summary|source/i.test(k)),
-    `reflect outbound-free ${noOutbound}, gateway routes reflect→reflect ${routed}, diary screens speech-free ${noSpeech}, entry ${savedEntry.status} text unchanged ${savedEntry.data?.text === rawWords}, keys ${savedKeys}`);
+    `reflect outbound-free ${noOutbound}, gateway routes reflect→reflect ${routed}, diary screens speech-free ${noSpeech}, voice note private ${voiceOk}, entry ${savedEntry.status} text unchanged ${savedEntry.data?.text === rawWords}, keys ${savedKeys}`);
 
   // Silent Seva: "Session over" marks this week served; only the volunteer, never a week still to come
   const served = (token, week) => call('POST', `/api/commitments/${ids.commitments.seeded}/served`, { token, body: { week } });
