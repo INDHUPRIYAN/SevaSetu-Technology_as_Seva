@@ -1,73 +1,64 @@
-# Render Blueprint (render.com → New → Blueprint → pick this repo): the four backend services.
-# Secrets marked `sync: false` are asked for in the Render dashboard; they never live in git.
-# The web app goes to Vercel: root directory apps/web, env VITE_API_URL = the gateway URL.
-# One-service alternative: a single web service with start command `node mono.js`
-# (MONGO_URI, JWT_SECRET, and the bridge keys if you have them).
+# Render Blueprint (render.com → New → Blueprint → pick this repo).
+# ONE web service runs the whole backend (gateway + core + reflect + bridge) in one process: node mono.js.
+# One URL, one cold start, one place for secrets. The web app goes to Vercel (root directory apps/web,
+# env VITE_API_URL = this service's URL). Secrets marked `sync: false` are asked for in the Render dashboard
+# and never live in git. (The four-service layout is in DEPLOY.md if you ever need to scale them apart.)
 services:
   - type: web
-    name: sevasetu-core
+    name: sevasetu
     runtime: node
+    plan: free
     buildCommand: npm ci
-    startCommand: node services/core/src/server.js
-    healthCheckPath: /health
+    startCommand: node mono.js
+    healthCheckPath: /health/all
     envVars:
-      - key: MONGO_URI          # Atlas connection string ending in /seva_core
+      - key: MONGO_URI              # Atlas connection string, e.g. mongodb+srv://…/sevasetu (core and reflect share it)
         sync: false
-      - key: JWT_SECRET
+      - key: JWT_SECRET             # any long random string
+        generateValue: true
+      - key: WEB_ORIGIN             # the Vercel URL of the web app (CORS); leave empty until you have it
         sync: false
-
-  - type: web
-    name: sevasetu-reflect
-    runtime: node
-    buildCommand: npm ci
-    startCommand: node services/reflect/src/server.js
-    healthCheckPath: /health
-    envVars:
-      - key: MONGO_URI          # the same cluster, ending in /seva_reflect
-        sync: false
+      - key: SEED_ON_START          # fills an EMPTY database with the demo data on first boot; never touches a filled one
+        value: "true"
       - key: WISDOM_TIME_ZONE
         value: Asia/Kolkata
-
-  - type: web
-    name: sevasetu-bridge
-    runtime: node
-    buildCommand: npm ci
-    startCommand: node services/bridge/src/server.js
-    healthCheckPath: /health
-    envVars:
-      - key: LLM_PROVIDER       # groq | none
+      # ---- LLM (Groq). Without a key every AI job uses its rule-based fallback.
+      - key: LLM_PROVIDER
         value: groq
-      - key: LLM_API_KEY        # Groq key; without it (or without LLM_MODEL) every AI job uses its rule-based fallback
+      - key: LLM_API_KEY
         sync: false
-      - key: LLM_MODEL          # no model name is written in the code
+      - key: LLM_MODEL              # no model name is written in the code
         value: openai/gpt-oss-120b
-      - key: LLM_RESPONSE_FORMAT   # json_schema (gpt-oss / qwen3 models) or json_object (any model)
+      - key: LLM_RESPONSE_FORMAT
         value: json_schema
-      - key: LANGUAGE_PROVIDER  # bhashini | none
+      - key: LLM_REASONING_EFFORT
+        value: low
+      - key: LLM_TEMPERATURE
+        value: "0"
+      # ---- speech: Bhashini first, then Groq audio, then the browser's own
+      - key: LANGUAGE_PROVIDER
         value: bhashini
-      - key: BHASHINI_USER_ID   # without these, speech, translation and the voice fall back to the browser's own
+      - key: SPEECH_TO_TEXT
+        value: bhashini,groq
+      - key: TEXT_TO_SPEECH
+        value: bhashini,groq
+      - key: TRANSLATION
+        value: bhashini
+      - key: BHASHINI_USER_ID
         sync: false
       - key: BHASHINI_ULCA_API_KEY
+        sync: false
+      - key: BHASHINI_INFERENCE_API_KEY
         sync: false
       - key: BHASHINI_PIPELINE_ID
         value: 64392f96daac500b55c543cd
       - key: BHASHINI_TTS_GENDER
         value: female
-
-  - type: web
-    name: sevasetu-gateway
-    runtime: node
-    buildCommand: npm ci
-    startCommand: node services/gateway/src/server.js
-    healthCheckPath: /health
-    envVars:
-      - key: JWT_SECRET         # the same value as core's
-        sync: false
-      - key: CORE_URL           # each service's URL from the Render dashboard, e.g. https://sevasetu-core.onrender.com
-        sync: false
-      - key: REFLECT_URL
-        sync: false
-      - key: BRIDGE_URL
-        sync: false
-      - key: WEB_ORIGIN         # the Vercel URL of the web app
-        sync: false
+      - key: GROQ_STT_MODEL
+        value: whisper-large-v3
+      - key: GROQ_TTS_MODEL
+        value: canopylabs/orpheus-v1-english
+      - key: DRAFT_TIMEOUT_MS
+        value: "8000"
+      - key: TRANSLATE_TIMEOUT_MS
+        value: "4000"

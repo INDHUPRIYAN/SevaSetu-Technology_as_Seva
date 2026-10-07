@@ -174,19 +174,24 @@ const circles = [{
   memberIds: [ids.users.newVolunteer, ids.users.seededVolunteer, ids.users.circleMember],
 }];
 
-async function seed() {
-  if (!process.env.MONGO_URI) throw new Error('Set MONGO_URI (services/core/.env or the command line)');
-  await mongoose.connect(process.env.MONGO_URI);
+// Fill the core collections on an open mongoose connection (mono.js uses this on first boot)
+async function seedCore({ log = console.log } = {}) {
   const db = mongoose.connection.db.databaseName;
-
   const plan = [[User, users], [Org, orgs], [Need, needs], [Visit, visits], [Commitment, commitments], [Circle, circles], [Resource, resources]];
   for (const [Model, docs] of plan) {
     await Model.deleteMany({});
     await Model.insertMany(docs.map(d => ({ ...d, _id: oid(d._id) })));
     await Model.syncIndexes();
-    console.log(`${db}.${Model.collection.name}: ${docs.length}`);
+    log(`${db}.${Model.collection.name}: ${docs.length}`);
   }
+}
+
+async function seed() {
+  if (!process.env.MONGO_URI) throw new Error('Set MONGO_URI (the root .env or the command line)');
+  await mongoose.connect(process.env.MONGO_URI);
+  await seedCore();
   await mongoose.disconnect();
 }
 
-seed().catch(e => { console.error(e.message); process.exit(1); });
+if (require.main === module) seed().catch(e => { console.error(e.message); process.exit(1); });
+module.exports = { seedCore };

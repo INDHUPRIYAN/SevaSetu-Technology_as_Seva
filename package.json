@@ -15,10 +15,14 @@
     "test:ui:desktop": "npm run seed && node scripts/ui-test.js --desktop",
     "build": "npm run build -w apps/web",
     "check": "npm run check -w services/bridge",
-    "scan-keys": "node services/bridge/scripts/scan-keys.js"
+    "scan-keys": "node services/bridge/scripts/scan-keys.js",
+    "seed:mono": "node seed/seed-core.js && node seed/seed-reflect.js"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",
     "playwright-core": "^1.63.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

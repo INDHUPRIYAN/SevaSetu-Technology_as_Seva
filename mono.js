@@ -17,7 +17,19 @@ const { createApp: createCore } = require('./services/core/src/app');
 const { createApp: createReflect } = require('./services/reflect/src/app');
 const { createApp: createBridge } = require('./services/bridge/src/app');
 
-mongoose.connect(process.env.MONGO_URI).then(() => {
+// SEED_ON_START=true: the first boot of a fresh database fills the demo data (core and reflect), once.
+// A database that already has users is left alone, so a redeploy never wipes anything.
+async function seedIfEmpty() {
+  if (process.env.SEED_ON_START !== 'true') return;
+  const { User } = require('./services/core/src/models');
+  if (await User.countDocuments()) return;
+  console.log('mono: empty database, seeding the demo data');
+  await require('./seed/seed-core').seedCore();
+  await require('./seed/seed-reflect').seedReflect();
+  console.log('mono: seeded');
+}
+
+mongoose.connect(process.env.MONGO_URI).then(seedIfEmpty).then(() => {
   const app = createGateway({
     local: { core: createCore(), reflect: createReflect(), bridge: createBridge() },
   });
