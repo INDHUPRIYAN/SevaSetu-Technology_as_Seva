@@ -90,9 +90,9 @@ function bridgeRouter({ callLLM, translate, transcribe, speak, draftTimeoutMs, t
     if (text.length > 2000) return fail(res, 400, 'Please keep it under 2000 characters');
     if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be ta, hi or en');
     try {
-      const out = await withTimeout(speak({ text: text.trim(), language }), draftTimeoutMs);
+      const out = await withTimeout(speak({ text: text.trim(), language }), draftTimeoutMs * 2);   // two providers may be tried
       if (!out?.audioBase64) throw new Error('no audio');
-      res.json({ data: { audioBase64: out.audioBase64, format: out.format || 'wav', samplingRate: out.samplingRate || null, source: 'bhashini' } });
+      res.json({ data: { audioBase64: out.audioBase64, format: out.format || 'wav', samplingRate: out.samplingRate || null, source: out.source || 'bhashini' } });
     } catch (e) {
       fail(res, 503, 'No voice is available here. The browser can read it instead.');
     }

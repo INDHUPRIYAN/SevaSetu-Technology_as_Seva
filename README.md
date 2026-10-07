@@ -80,7 +80,9 @@ dropped for the rule-based fallback if it still does not fit; every call times o
 | `LLM_RESPONSE_FORMAT` | `json_schema` (Groq constrained decoding, gpt-oss / qwen3 models) or `json_object` (any model) | `json_schema` |
 | `LLM_BASE_URL` | another OpenAI-compatible chat endpoint | Groq's |
 | `LANGUAGE_PROVIDER` | `bhashini` (default) or `none` | — |
-| `BHASHINI_USER_ID`, `BHASHINI_ULCA_API_KEY` | speech to text, translation, text to speech (bhashini.gov.in → profile) | the browser's own Web Speech and speechSynthesis are used for the mic and Read It Aloud; Tamil/Hindi words go to the model untranslated |
+| `BHASHINI_USER_ID`, `BHASHINI_ULCA_API_KEY` | speech to text, translation, text to speech (bhashini.gov.in → profile) | Groq audio is tried next (below); after that the browser's own Web Speech and speechSynthesis; Tamil/Hindi words go to the model untranslated |
+| `SPEECH_TO_TEXT`, `TEXT_TO_SPEECH`, `TRANSLATION` | provider order per task, e.g. `bhashini,groq` (first that answers wins) | `bhashini,groq` / `bhashini,groq` / `bhashini` |
+| `GROQ_STT_MODEL`, `GROQ_TTS_MODEL`, `GROQ_TTS_VOICE` | Groq Whisper (`whisper-large-v3`, multilingual: exact on our Tamil check) and Orpheus (`canopylabs/orpheus-v1-english`, **English only**, terms must be accepted once in the Groq console) | defaults |
 | `BHASHINI_PIPELINE_ID`, `BHASHINI_TTS_GENDER` | public pipeline id (docs/BHASHINI.md); `female` or `male` voice | defaults |
 | `DRAFT_TIMEOUT_MS`, `TRANSLATE_TIMEOUT_MS` | provider timeouts | 8000 / 4000 |
 

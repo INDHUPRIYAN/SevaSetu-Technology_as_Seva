@@ -154,6 +154,12 @@ The AI principle: AI understands, suggests and organises; humans decide. Provide
 server, retried once, then dropped for the rule-based fallback; every call times out at 8 s; nothing is
 stored (no audio, no transcripts, no turns, no raw model output). Coordinators only for anything that drafts.
 
+Speech, compared on identical Tamil / Hindi audio (Bhashini TTS of a known sentence): Bhashini ASR exact on
+both; Groq Whisper large-v3 exact on Tamil, one slip on Hindi; Whisper turbo two slips on Tamil. So the order is
+**Bhashini → Groq Whisper → the browser's Web Speech** for speech to text, and **Bhashini → Groq Orpheus (English
+only) → the browser's speechSynthesis** for text to speech; translation is Bhashini, else the model reads the
+original language. The order is `SPEECH_TO_TEXT` / `TEXT_TO_SPEECH` / `TRANSLATION` in `.env`.
+
 | # | What |
 |---|---|
 | 28 | Coordinator's words → draft need card (the one-shot path; kept for the API tests). Never publishes |
