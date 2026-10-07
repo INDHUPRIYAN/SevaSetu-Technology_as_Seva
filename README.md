@@ -26,7 +26,11 @@ quote only after a person has found it in a printed volume and set `verified: tr
 in that file. Until then the quote is hidden everywhere, and the "Why?" notes and moments show only
 our own words.
 
-The coordinator screens have an English / தமிழ் toggle ([apps/web/src/i18n/ta.js](apps/web/src/i18n/ta.js) still
+A coordinator can speak or type a need in 14 languages — Tamil, Hindi, English, Malayalam, Telugu, Kannada,
+Marathi, Bengali, Gujarati, Punjabi, Odia, Assamese, Urdu and Sanskrit (the list, the fixed questions and the
+read-back scaffolding live in [services/bridge/src/languages.js](services/bridge/src/languages.js), marked
+*needs review by native speakers*; Bhashini has no voice for Sanskrit and Urdu and no speech-to-text for Assamese,
+so those fall through to Groq Whisper or the browser). The coordinator screens have an English / தமிழ் toggle ([apps/web/src/i18n/ta.js](apps/web/src/i18n/ta.js) still
 needs a Tamil speaker's review). Teachings, quotations and anything a person wrote are never translated.
 
 Phones get a 430 px layout with a bottom nav. Screens 1024 px and wider get a sidebar, and from

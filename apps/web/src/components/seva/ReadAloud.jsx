@@ -6,8 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import Button from '../ui/Button';
 import { useT } from '../../i18n';
-
-const BCP47 = { ta: 'ta-IN', hi: 'hi-IN', en: 'en-IN' };
+import { BCP47 } from '../../lib/languages';
 
 export function canSpeakInBrowser() {
   return typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';

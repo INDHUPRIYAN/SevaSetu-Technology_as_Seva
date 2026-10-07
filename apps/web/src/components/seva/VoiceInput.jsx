@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { arrayBufferToBase64, blobToWav, TARGET_RATE } from './toWav';
 import { Mic, Stop } from './icons';
+import { BCP47, dirOf } from '../../lib/languages';
 
 export const MAX_SECONDS = 30;
 
@@ -23,7 +24,6 @@ export function browserSpeech() {
   if (typeof window === 'undefined') return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
-const BCP47 = { ta: 'ta-IN', hi: 'hi-IN', en: 'en-IN' };
 
 const STATUS_TEXT = {
   idle: '',
@@ -163,6 +163,7 @@ export default function VoiceInput({ value, onChange, lang = 'ta', id, label, hi
         <textarea
           id={boxId}
           lang={lang}
+          dir={dirOf(lang)}
           rows={rows}
           value={value}
           onChange={e => onChange(e.target.value)}

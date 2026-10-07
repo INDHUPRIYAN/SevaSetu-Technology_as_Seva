@@ -15,7 +15,8 @@ const fail = (res, status, message) => res.status(status).json({ error: { messag
 const str = v => (typeof v === 'string' ? v.trim() : '');
 const isClean = s => findFlags(s).length === 0;
 
-const LANGUAGE_NAME = { en: 'English', ta: 'Tamil', hi: 'Hindi' };
+const { LANGUAGES: LANGUAGE_TABLE } = require('../languages');
+const LANGUAGE_NAME = Object.fromEntries(Object.entries(LANGUAGE_TABLE).map(([code, l]) => [code, l.name]));
 
 const EXTRACT_SCHEMA = {
   type: 'object',
@@ -46,7 +47,7 @@ const EXTRACT_SCHEMA = {
 const EXTRACT_PROMPT = `You help a community coordinator describe a need for volunteers. You will get the current
 draft card, the conversation so far (the coordinator's words and the app's questions), and the name of ONE field
 the app will ask about next (or "none").
-EVERY FIELD OF THE DRAFT IS WRITTEN IN ENGLISH. The coordinator may speak Tamil or Hindi: translate what they
+EVERY FIELD OF THE DRAFT IS WRITTEN IN ENGLISH. The coordinator may speak any Indian language: translate what they
 said into plain English for the card (title, want, serveUsWell, youWillLearn, place). Never leave a card field in
 another script; if a field of the current draft is not in English, rewrite it in English without changing its
 meaning. Translate faithfully: do not summarise, improve or add. Update the draft ONLY with what the
@@ -76,7 +77,7 @@ function voicebridgeRouter({ callJSON, aiTimeoutMs, llmConfigured, languageConfi
   router.post('/voicebridge', async (req, res) => {
     if (req.headers['x-user-role'] !== 'coordinator') return fail(res, 403, 'Coordinators only');
     const { language = 'en', turns, draft, context } = req.body || {};
-    if (!vb.LANGUAGES.includes(language)) return fail(res, 400, 'Language must be ta, hi or en');
+    if (!vb.LANGUAGES.includes(language)) return fail(res, 400, 'Language must be one of ' + vb.LANGUAGES.join(', '));
     if (!Array.isArray(turns) || !turns.length) return fail(res, 400, 'Please say or type the need');
     if (turns.length > MAX_TURNS) return fail(res, 400, 'Please start again: this conversation is too long');
     const clean = turns.map(t => ({

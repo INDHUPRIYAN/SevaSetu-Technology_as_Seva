@@ -5,24 +5,16 @@
 // Nothing here stores anything: the browser holds the turns, the server answers from them.
 const { findFlags, ruleRewrite, publicFlag } = require('./dignity');
 const { normalizeDraft } = require('./draft');
+const L = require('./languages');
 
-const LANGUAGES = ['en', 'ta', 'hi'];
+const LANGUAGES = L.CODES;
 const MAX_QUESTIONS = 3;
 
 // Required, in the order they are asked. youWillLearn is asked once, only if a question is left.
 const REQUIRED = ['want', 'place', 'day', 'start', 'weeks', 'serveUsWell'];
 const OPTIONAL = ['youWillLearn'];
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const DAY_WORDS = {
-  Monday: ['monday', 'mon', 'திங்கள்', 'திங்கட்கிழமை', 'सोमवार'],
-  Tuesday: ['tuesday', 'tue', 'tues', 'செவ்வாய்', 'செவ்வாய்க்கிழமை', 'मंगलवार'],
-  Wednesday: ['wednesday', 'wed', 'புதன்', 'புதன்கிழமை', 'बुधवार'],
-  Thursday: ['thursday', 'thu', 'thurs', 'வியாழன்', 'வியாழக்கிழமை', 'गुरुवार', 'बृहस्पतिवार'],
-  Friday: ['friday', 'fri', 'வெள்ளி', 'வெள்ளிக்கிழமை', 'शुक्रवार'],
-  Saturday: ['saturday', 'sat', 'சனி', 'சனிக்கிழமை', 'शनिवार'],
-  Sunday: ['sunday', 'sun', 'ஞாயிறு', 'ஞாயிற்றுக்கிழமை', 'रविवार'],
-};
+const WEEKDAYS = L.WEEKDAYS;
 const NUMBER_WORDS = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12,
   ஒரு: 1, இரண்டு: 2, மூன்று: 3, நான்கு: 4, ஐந்து: 5, ஆறு: 6, எட்டு: 8, பத்து: 10, பன்னிரண்டு: 12,
@@ -38,74 +30,31 @@ const INTERESTS = {
   conversation: /\b(conversation|talk|talking|speak|speaking|listening)\b|பேச|बात/i,
   games: /\b(games?|play|sports?)\b|விளையாட்டு|खेल/i,
 };
-const YES = /^\s*(yes|yeah|yep|ok|okay|ஆம்|ஆமாம்|சரி|हाँ|हां|जी|ठीक)\b/i;
-const NO = /^\s*(no|nope|not|இல்லை|வேண்டாம்|नहीं|ना)\b/i;
-
-const QUESTIONS = {
-  en: {
-    want: 'What does the group want help with?',
-    place: 'Where will this happen? Please name the place.',
-    day: 'Which day of the week?',
-    start: 'What time does it start, and until when?',
-    weeks: 'For how many weeks?',
-    serveUsWell: 'How can a volunteer serve the group well?',
-    youWillLearn: 'What will a volunteer learn here?',
-    related: 'Is this for the same place as "{title}"?',
-  },
-  ta: {
-    want: 'குழுவிற்கு எதில் உதவி வேண்டும்?',
-    place: 'இது எங்கே நடக்கும்? இடத்தின் பெயரைச் சொல்லுங்கள்.',
-    day: 'வாரத்தில் எந்த நாள்?',
-    start: 'எத்தனை மணிக்குத் தொடங்கும், எத்தனை மணி வரை?',
-    weeks: 'எத்தனை வாரங்களுக்கு?',
-    serveUsWell: 'ஒரு தன்னார்வலர் குழுவிற்கு எப்படி நன்றாகச் சேவை செய்யலாம்?',
-    youWillLearn: 'ஒரு தன்னார்வலர் இங்கே என்ன கற்றுக்கொள்வார்?',
-    related: 'இது "{title}" அதே இடத்திற்கா?',
-  },
-  hi: {
-    want: 'समूह को किस चीज़ में मदद चाहिए?',
-    place: 'यह कहाँ होगा? कृपया जगह का नाम बताइए।',
-    day: 'हफ़्ते का कौन सा दिन?',
-    start: 'कितने बजे शुरू होगा, और कब तक?',
-    weeks: 'कितने हफ़्तों के लिए?',
-    serveUsWell: 'एक स्वयंसेवक समूह की अच्छी सेवा कैसे कर सकता है?',
-    youWillLearn: 'एक स्वयंसेवक यहाँ क्या सीखेगा?',
-    related: 'क्या यह "{title}" वाली जगह के लिए ही है?',
-  },
-};
+const YES = new RegExp(`^\s*(${L.YES_WORDS.join('|')})(?![\p{L}\p{M}])`, 'iu');
+const NO = new RegExp(`^\s*(${L.NO_WORDS.join('|')})(?![\p{L}\p{M}])`, 'iu');
+const QUESTIONS = L.QUESTIONS;
 
 // Read-back scaffolding per language; the card's own words are kept as written (English, or the coordinator's).
-const READ_BACK = {
-  en: d => [
-    d.title && `Need: ${d.title}.`,
-    d.want && `${d.want}`,
-    d.place && `Place: ${d.place}.`,
-    d.rhythm.day && `Every ${d.rhythm.day}${d.rhythm.start ? ` from ${d.rhythm.start}` : ''}${d.rhythm.end ? ` to ${d.rhythm.end}` : ''}${d.weeks ? `, for ${d.weeks} weeks` : ''}.`,
-    d.serveUsWell && `How to serve the group well: ${d.serveUsWell}`,
-    d.youWillLearn && `A volunteer will learn: ${d.youWillLearn}`,
-  ],
-  ta: d => [
-    d.title && `தேவை: ${d.title}.`,
-    d.want && `${d.want}`,
-    d.place && `இடம்: ${d.place}.`,
-    d.rhythm.day && `ஒவ்வொரு ${dayIn('ta', d.rhythm.day)}${d.rhythm.start ? ` ${d.rhythm.start} முதல்` : ''}${d.rhythm.end ? ` ${d.rhythm.end} வரை` : ''}${d.weeks ? `, ${d.weeks} வாரங்களுக்கு` : ''}.`,
-    d.serveUsWell && `குழுவிற்கு நன்றாகச் சேவை செய்வது எப்படி: ${d.serveUsWell}`,
-    d.youWillLearn && `தன்னார்வலர் கற்றுக்கொள்வது: ${d.youWillLearn}`,
-  ],
-  hi: d => [
-    d.title && `ज़रूरत: ${d.title}.`,
-    d.want && `${d.want}`,
-    d.place && `जगह: ${d.place}.`,
-    d.rhythm.day && `हर ${dayIn('hi', d.rhythm.day)}${d.rhythm.start ? ` ${d.rhythm.start} से` : ''}${d.rhythm.end ? ` ${d.rhythm.end} तक` : ''}${d.weeks ? `, ${d.weeks} हफ़्तों के लिए` : ''}.`,
-    d.serveUsWell && `समूह की अच्छी सेवा कैसे करें: ${d.serveUsWell}`,
-    d.youWillLearn && `एक स्वयंसेवक सीखेगा: ${d.youWillLearn}`,
-  ],
-};
+// the weekday in the coordinator's language (the longest form, e.g. சனிக்கிழமை), for the read-back
 function dayIn(language, day) {
-  const words = DAY_WORDS[day] || [];
-  if (language === 'ta') return words.find(w => /[஀-௿]/.test(w) && w.endsWith('கிழமை')) || day;
-  if (language === 'hi') return words.find(w => /[ऀ-ॿ]/.test(w)) || day;
-  return day;
+  const i = WEEKDAYS.indexOf(day);
+  const words = (L.DAY_WORDS[language] || [])[i] || [];
+  return [...words].sort((a, b) => b.length - a.length)[0] || day;
+}
+// the read-back, in a few spoken sentences, with the card's own words kept as written
+function readBackLines(language, d) {
+  const r = L.READ_BACK[language] || L.READ_BACK.en;
+  const when = r.order === 'from-to'
+    ? `${r.every} ${dayIn(language, d.rhythm.day)}${d.rhythm.start ? ` ${r.from} ${d.rhythm.start}` : ''}${d.rhythm.end ? ` ${r.to} ${d.rhythm.end}` : ''}`
+    : `${r.every} ${dayIn(language, d.rhythm.day)}${d.rhythm.start ? ` ${d.rhythm.start} ${r.from}` : ''}${d.rhythm.end ? ` ${d.rhythm.end} ${r.to}` : ''}`;
+  return [
+    d.title && `${r.need}: ${d.title}.`,
+    d.want && `${d.want}`,
+    d.place && `${r.place}: ${d.place}.`,
+    d.rhythm.day && `${when}${d.weeks ? `, ${r.weeks.replace('{n}', d.weeks)}` : ''}.`,
+    d.serveUsWell && `${r.serve}: ${d.serveUsWell}`,
+    d.youWillLearn && `${r.learn}: ${d.youWillLearn}`,
+  ];
 }
 
 const str = v => (typeof v === 'string' ? v.trim() : '');
@@ -113,13 +62,17 @@ const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function findDays(text) {
   const found = [];
-  for (const day of WEEKDAYS) {
-    for (const w of DAY_WORDS[day]) {
-      const re = /^[a-z]+$/.test(w) ? new RegExp(`\\b${w}\\b`, 'i') : new RegExp(esc(w));
-      const m = re.exec(text);
-      if (m) { found.push({ day, at: m.index }); break; }
+  WEEKDAYS.forEach((day, i) => {
+    let best = -1;
+    for (const words of Object.values(L.DAY_WORDS)) {
+      for (const w of words[i] || []) {
+        const re = /^[a-z]+$/.test(w) ? new RegExp(`\\b${w}\\b`, 'i') : new RegExp(esc(w));
+        const m = re.exec(text);
+        if (m && (best < 0 || m.index < best)) best = m.index;
+      }
     }
-  }
+    if (best >= 0) found.push({ day, at: best });
+  });
   return found.sort((a, b) => a.at - b.at).map(x => x.day);
 }
 
@@ -127,24 +80,30 @@ function findDays(text) {
 function toClock(h, m, suffix, context) {
   let hour = Number(h);
   const min = m ? Number(m) : 0;
-  const pm = /p/i.test(suffix || '') || /\b(evening|afternoon|மாலை|மதியம்|शाम|दोपहर)\b/.test(context);
-  const am = /a/i.test(suffix || '') || /\b(morning|காலை|सुबह)\b/.test(context);
+  const pm = /p/i.test(suffix || '') || EVENING_RE.test(context);
+  const am = /a/i.test(suffix || '') || MORNING_RE.test(context);
   if (pm && hour < 12) hour += 12;
-  if (am && hour === 12) hour = 0;
+  if (hour === 12 && /a/i.test(suffix || '')) hour = 0;         // only an explicit "12 am" is midnight; "morning … 12" is noon
   if (!pm && !am && hour >= 1 && hour <= 6) hour += 12;      // "4 to 6" with no am/pm: afternoon
   if (hour > 23 || min > 59) return '';
   return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
-const TIME = String.raw`(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|மணி|बजे)?`;
-const TO = String.raw`\s*(?:to|-|–|till|until|முதல்|வரை|से|तक)\s*`;
-const withSuffix = s => /[ap]|மணி|बजे/i.test(s || '');
+const TIME = String.raw`(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|மணி|बजे|മണി|గంటల\S*|ಗಂಟೆ\S*|वाजता|টা|વાગ્યે|ਵਜੇ|ଟା|বজা|بجے|वादने)?`;
+const TO = String.raw`\s*(?:to|-|–|till|until|முதல்|வரை|से|तक|മുതൽ|വരെ|నుండి|వరకు|ರಿಂದ|ವರೆಗೆ|पासून|पर्यंत|থেকে|পর্যন্ত|થી|સુધી|ਤੋਂ|ਤੱਕ|ରୁ|ପର୍ଯ୍ୟନ୍ତ|ৰ পৰা|লৈ|سے|تک|तः|पर्यन्तम्)\s*`;
+const withSuffix = s => /[ap]|மணி|बजे|മണി|గంటల|ಗಂಟೆ|वाजता|টা|વાગ્યે|ਵਜੇ|ଟା|বজা|بجے|वादने/i.test(s || '');
+const MORNING_RE = new RegExp(`(^|[^\\p{L}])(${L.MORNING.join('|')})`, 'iu');
+const EVENING_RE = new RegExp(`(^|[^\\p{L}])(${L.EVENING.join('|')})`, 'iu');
+const WEEK_RE = new RegExp(`(?:^|[\\s,(])(\\d{1,2}|[a-z]+|[\\p{L}]+)\\s*(${L.WEEK_WORDS.join('|')})`, 'iu');
+const GROUP_RE = new RegExp(`(?:^|[\\s,(])(\\d{1,3})\\s*(${L.GROUP_WORDS.join('|')})`, 'iu');
+// a correction word counts only as a whole word (a bare syllable inside another word is not one)
+const EDIT_RE = new RegExp(`(^|[^\p{L}\p{M}])(${L.EDIT_WORDS.join('|')})(?![\p{L}\p{M}])`, 'iu');
 function findTimes(text) {
   // "class 6 to 8", "std 5-7", "4 weeks", "12 students" are not times
   const t = text
     .replace(/\b(?:class(?:es)?|std|grade|standard)\s*\d{1,2}(?:\s*(?:to|-|–)\s*\d{1,2})?/gi, ' ')
     .replace(/\d{1,2}\s*(?:முதல்|to|-|–|से)\s*\d{1,2}\s*(?:ஆம்\s*)?(?:வகுப்பு|கிளாஸ்|कक्षा|क्लास)/g, ' ')
     .replace(/\d{1,2}\s*(?:ஆம்\s*)?(?:வகுப்பு|कक्षा|क्लास)/g, ' ')
-    .replace(/\b\d{1,3}\s*(?:weeks?|வாரம்|வாரங்கள்|வாரங்களுக்கு|हफ़्त\S*|हफ्त\S*|सप्ताह|students?|children|kids|people|elders|boys|girls|மாணவர்\S*|குழந்தை\S*|பேர்|बच्च\S*|छात्र\S*|लोग)/gi, ' ');
+    .replace(new RegExp(`\\b\\d{1,3}\\s*(?:${[...L.WEEK_WORDS, ...L.GROUP_WORDS].join('|')})`, 'giu'), ' ');
   const ranges = new RegExp(`${TIME}${TO}${TIME}`, 'gi');
   let range;
   while ((range = ranges.exec(t))) {
@@ -168,13 +127,13 @@ function findTimes(text) {
   return [];
 }
 function findWeeks(text) {
-  const m = /(?:^|[\s,(])(\d{1,2}|[a-z]+|[஀-௿]+|[ऀ-ॿ]+)\s*(weeks?\b|வாரங்களுக்கு|வாரங்கள்|வாரம்|हफ़्तों|हफ्तों|हफ़्ते|हफ्ते|सप्ताह)/i.exec(text);
+  const m = WEEK_RE.exec(text);
   if (!m) return 0;
   const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()] || 0;
   return n >= 1 && n <= 52 ? n : 0;
 }
 function findGroupSize(text) {
-  const m = /(?:^|[\s,(])(\d{1,3})\s*(students?\b|children\b|kids\b|people\b|elders\b|women\b|men\b|boys\b|girls\b|மாணவர\S*|குழந்தை\S*|பேர\S*|बच्च\S*|छात्र\S*|लोग\S*)/i.exec(text);
+  const m = GROUP_RE.exec(text);
   return m ? Number(m[1]) : 0;
 }
 function findInterests(text) {
@@ -189,7 +148,7 @@ function findPlace(text) {
 // Spoken edits: "change Wednesday to Thursday", "not Wednesday, Thursday", "make it 4 weeks", "place is X".
 function applyEdit(draft, text) {
   const days = findDays(text);
-  const edit = /\b(change|make it|not|instead|correct|rather)\b|மாற்று|இல்லை|बदल|नहीं/i.test(text);
+  const edit = EDIT_RE.test(text);
   if (days.length >= 2 && edit) { draft.rhythm.day = days[days.length - 1]; return 'day'; }
   if (days.length === 1 && edit && draft.rhythm.day) { draft.rhythm.day = days[0]; return 'day'; }
   const weeks = findWeeks(text);
@@ -276,8 +235,7 @@ function relatedCard(draft, text, cards) {
 }
 
 function readBack(language, d) {
-  const lines = (READ_BACK[language] || READ_BACK.en)(d).filter(Boolean);
-  return lines.join(' ').replace(/\s+/g, ' ').trim();
+  return readBackLines(language, d).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
 // Read the latest coordinator turn into the draft (the earlier turns were read on earlier calls: the browser

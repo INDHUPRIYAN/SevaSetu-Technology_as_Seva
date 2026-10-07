@@ -1,6 +1,6 @@
 // Endpoints 11–17
 const router = require('express').Router();
-const { Need, Visit, Commitment, Circle } = require('../models');
+const { Need, Visit, Commitment, Circle, LANGUAGE_CODES } = require('../models');
 const { me, fail, ok, requireRole, checkId } = require('../lib/http');
 
 const CHECK_IN_EVERY = 4;                         // weeks between Community Check-ins
@@ -196,7 +196,7 @@ router.post('/:id/community-words', async (req, res) => {
   if (c.status !== 'finished') throw fail(409, 'The group’s words are relayed once the seva has finished');
   if (c.communityWords) throw fail(409, 'The group’s words have already been relayed');
   const text = String(req.body?.text || '').trim();
-  const language = ['en', 'ta', 'hi'].includes(req.body?.language) ? req.body.language : 'en';
+  const language = LANGUAGE_CODES.includes(req.body?.language) ? req.body.language : 'en';
   if (!text) throw fail(400, 'Please write what the group wanted to say');
   if (text.length > 300) throw fail(400, 'Please keep it to one line (under 300 characters)');
   if (MONEY.test(text)) throw fail(400, 'Please leave money out of the group’s words');

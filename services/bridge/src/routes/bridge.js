@@ -14,7 +14,7 @@ groupSize is the number of people in the group (0 if not said). weeks is a numbe
 rhythm.day is a full English weekday such as "Saturday". rhythm.start and rhythm.end are 24-hour
 "HH:MM" times. interestTags are 1 to 3 short lowercase words such as "teaching" or "reading".`;
 
-const LANGUAGES = ['en', 'ta', 'hi'];
+const { CODES: LANGUAGES } = require('../languages');
 const MAX_TEXT = 5000;
 
 // Never wait longer than `ms`, and never leave a timer running after the race is over.
@@ -36,7 +36,7 @@ function bridgeRouter({ callLLM, translate, transcribe, speak, draftTimeoutMs, t
     const { text, language = 'en' } = req.body || {};
     if (typeof text !== 'string' || !text.trim()) return fail(res, 400, 'Please say or type the need');
     if (text.length > MAX_TEXT) return fail(res, 400, `Please keep it under ${MAX_TEXT} characters`);
-    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be ta, hi or en');
+    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be one of ' + LANGUAGES.join(', '));
 
     // Bhashini translates first, so Groq drafts from good English. If it fails, Groq gets the original.
     let input = text;
@@ -68,7 +68,7 @@ function bridgeRouter({ callLLM, translate, transcribe, speak, draftTimeoutMs, t
     const { audio, language = 'ta', samplingRate = 16000 } = req.body || {};
     if (typeof audio !== 'string' || !audio) return fail(res, 400, 'No audio');
     if (!/^[A-Za-z0-9+/]+={0,2}$/.test(audio)) return fail(res, 400, 'Audio must be a base64 WAV');
-    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be ta, hi or en');
+    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be one of ' + LANGUAGES.join(', '));
     const rate = Number(samplingRate);
     if (!Number.isInteger(rate) || rate < 8000 || rate > 48000) return fail(res, 400, 'samplingRate must be 8000 to 48000');
 
@@ -88,7 +88,7 @@ function bridgeRouter({ callLLM, translate, transcribe, speak, draftTimeoutMs, t
     const { text, language = 'ta' } = req.body || {};
     if (typeof text !== 'string' || !text.trim()) return fail(res, 400, 'Please send the words to read');
     if (text.length > 2000) return fail(res, 400, 'Please keep it under 2000 characters');
-    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be ta, hi or en');
+    if (!LANGUAGES.includes(language)) return fail(res, 400, 'Language must be one of ' + LANGUAGES.join(', '));
     try {
       const out = await withTimeout(speak({ text: text.trim(), language }), draftTimeoutMs * 2);   // two providers may be tried
       if (!out?.audioBase64) throw new Error('no audio');

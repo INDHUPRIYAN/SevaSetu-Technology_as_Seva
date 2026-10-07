@@ -1,6 +1,6 @@
 // Endpoints 4–7
 const router = require('express').Router();
-const { Need, User, Visit, Commitment } = require('../models');
+const { Need, User, Visit, Commitment, LANGUAGE_CODES } = require('../models');
 const { me, fail, ok, requireRole, checkId } = require('../lib/http');
 
 function partOfDay(start = '') {
@@ -59,7 +59,7 @@ router.post('/', async (req, res) => {
   // the words as the community said them, in their language
   let original = null;
   if (b.original?.text && String(b.original.text).trim()) {
-    const language = ['en', 'ta', 'hi'].includes(b.original.language) ? b.original.language : 'en';
+    const language = LANGUAGE_CODES.includes(b.original.language) ? b.original.language : 'en';
     original = { text: String(b.original.text).trim().slice(0, 5000), language };
   }
 

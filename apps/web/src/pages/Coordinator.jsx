@@ -13,6 +13,7 @@ import WeekStrip from '../components/WeekStrip';
 import DignityCheck from '../components/seva/DignityCheck';
 import LanguageToggle from '../components/seva/LanguageToggle';
 import { useT } from '../i18n';
+import { LANGUAGES as ALL_LANGUAGES } from '../lib/languages';
 
 export default function Coordinator() {
   const t = useT();
@@ -323,7 +324,7 @@ function LastCheckIn({ checkIn }) {
   );
 }
 
-const LANGUAGES = [['en', 'English'], ['ta', 'தமிழ்'], ['hi', 'हिन्दी']];
+const LANGUAGES = ALL_LANGUAGES.map(l => [l.code, l.label]);
 
 // "What the group wanted to say": one optional line relayed from the group once the seva has finished,
 // about the group and never a named person. The Dignity Check runs on it; the coordinator approves; then it is

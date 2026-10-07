@@ -88,3 +88,20 @@ describe('language module: provider order and fallback', () => {
     assert.equal(off.isConfigured(), false);
   });
 });
+
+describe('the language list is one list', () => {
+  it('bridge, core and web agree on the codes; every code has questions, read-back and weekdays', () => {
+    const fs = require('fs');
+    const L = require('../src/languages');
+    const core = require('../../core/src/models/index.js').LANGUAGE_CODES;
+    const web = fs.readFileSync(path.join(__dirname, '../../../apps/web/src/lib/languages.js'), 'utf8');
+    const webCodes = [...web.matchAll(/code: '([a-z]{2})'/g)].map(m => m[1]);
+    assert.deepEqual([...core].sort(), [...L.CODES].sort());
+    assert.deepEqual([...webCodes].sort(), [...L.CODES].sort());
+    for (const c of L.CODES) {
+      assert.equal(L.DAY_WORDS[c].length, 7, c);
+      for (const k of ['want', 'place', 'day', 'start', 'weeks', 'serveUsWell', 'youWillLearn', 'related']) assert.ok(L.QUESTIONS[c][k], `${c}.${k}`);
+      for (const k of ['need', 'place', 'every', 'from', 'to', 'weeks', 'serve', 'learn']) assert.ok(L.READ_BACK[c][k], `${c}.${k}`);
+    }
+  });
+});

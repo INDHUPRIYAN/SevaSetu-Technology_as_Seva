@@ -15,6 +15,11 @@ const FIELD_LABEL = {
   youWillLearn: 'What you will learn', related: 'Same place as an earlier card?',
 };
 const empty = v => v === '' || v === 0 || v == null;
+const PLACEHOLDER = {
+  ta: 'எ.கா. 6 முதல் 8 ஆம் வகுப்பு மாணவர்கள் 12 பேருக்கு…',
+  hi: 'जैसे: कक्षा 6 से 8 के 12 छात्र…',
+  en: 'e.g. 12 students of class 6 to 8 want help reading English aloud…',
+};
 
 export default function VoiceBridge({ language, context, speech, onCard }) {
   const t = useT();
@@ -107,9 +112,7 @@ export default function VoiceBridge({ language, context, speech, onCard }) {
             rows={3}
             speech={speech}
             big
-            placeholder={language === 'ta' ? 'எ.கா. 6 முதல் 8 ஆம் வகுப்பு மாணவர்கள் 12 பேருக்கு…'
-              : language === 'hi' ? 'जैसे: कक्षा 6 से 8 के 12 छात्र…'
-              : 'e.g. 12 students of class 6 to 8 want help reading English aloud…'}
+            placeholder={PLACEHOLDER[language] || PLACEHOLDER.en}
           />
           {error && <p className="mt-2 text-sm font-medium text-ember" role="alert">{error}</p>}
           <div className="mt-3 flex flex-col-reverse gap-2 @md:flex-row @md:justify-end">

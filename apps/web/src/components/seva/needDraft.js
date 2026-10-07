@@ -1,12 +1,9 @@
 // Pure helpers for Post a Need: draft (endpoint 28) ⇄ form fields ⇄ body of A's POST /api/needs (endpoint 6).
+import { LANGUAGES } from '../../lib/languages';
 
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export const DRAFT_LANGUAGES = [
-  { code: 'ta', label: 'தமிழ்', name: 'Tamil' },
-  { code: 'hi', label: 'हिन्दी', name: 'Hindi' },
-  { code: 'en', label: 'English', name: 'English' },
-];
+export const DRAFT_LANGUAGES = LANGUAGES;
 
 export function normalizeDay(day) {
   const value = String(day || '').trim().toLowerCase();

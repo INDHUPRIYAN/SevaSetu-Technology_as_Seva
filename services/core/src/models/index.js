@@ -3,6 +3,8 @@
 // No field stores hours: progress is currentWeek of weeks.
 const { Schema, model, models } = require('mongoose');
 const { ObjectId } = Schema.Types;
+// the languages a coordinator may speak or type in (the same list as services/bridge/src/languages.js)
+const LANGUAGE_CODES = ['en', 'ta', 'hi', 'ml', 'te', 'kn', 'mr', 'bn', 'gu', 'pa', 'or', 'as', 'ur', 'sa'];
 
 const User = models.User || model('User', new Schema({
   name: { type: String, required: true },
@@ -42,7 +44,7 @@ const Need = models.Need || model('Need', new Schema({
   closed: { type: { reason: { type: String, maxlength: 300 }, at: Date, _id: false }, default: null },
   // the coordinator's own words, in the language they were said, kept beside the English card
   original: {
-    type: { text: { type: String, maxlength: 5000 }, language: { type: String, enum: ['en', 'ta', 'hi'] } },
+    type: { text: { type: String, maxlength: 5000 }, language: { type: String, enum: LANGUAGE_CODES } },
     default: null,
   },
   // "Updated after listening": lines the coordinator approved after a volunteer's visit
@@ -85,7 +87,7 @@ const Commitment = models.Commitment || model('Commitment', new Schema({
   // "What the group wanted to say": one line the coordinator relays at finish, in the language it was said,
   // about the group and never a named person; the coordinator ran the Dignity Check and approved it
   communityWords: {
-    type: { text: { type: String, maxlength: 300 }, language: { type: String, enum: ['en', 'ta', 'hi'] }, at: Date, _id: false },
+    type: { text: { type: String, maxlength: 300 }, language: { type: String, enum: LANGUAGE_CODES }, at: Date, _id: false },
     default: null,
   },
   // Community Check-in every 4 weeks: three questions asked in person, entered by the coordinator
@@ -125,4 +127,4 @@ const Resource = models.Resource || model('Resource', new Schema({
   inUse: { type: { answer: { type: String, enum: ['yes', 'not-yet', 'no'] }, at: Date }, default: null },
 }, { timestamps: true }));
 
-module.exports = { User, Org, Need, Visit, Commitment, Circle, Resource };
+module.exports = { User, Org, Need, Visit, Commitment, Circle, Resource, LANGUAGE_CODES };
