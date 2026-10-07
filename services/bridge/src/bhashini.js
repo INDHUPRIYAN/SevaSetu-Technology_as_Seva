@@ -1,8 +1,12 @@
 // services/bridge/src/bhashini.js — the one place that talks to Bhashini (speech to text, translation, text to
 // speech). Two steps per task: a config call (which model, which URL, which key), then a compute call.
 // Docs: https://bhashini.gitbook.io/bhashini-apis (pipeline config call, pipeline compute call).
-const CONFIG_URL = 'https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline';
+const CONFIG_URL = process.env.BHASHINI_CONFIG_URL || 'https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline';
 const PIPELINE_ID = process.env.BHASHINI_PIPELINE_ID || '64392f96daac500b55c543cd';   // MeitY pipeline
+// Optional, from the Bhashini profile: the inference endpoint and its key. The config call returns both as
+// well; when these are set they are used for the compute call (the config call still gives the serviceId).
+const INFERENCE_URL = () => process.env.BHASHINI_INFERENCE_URL || '';
+const INFERENCE_KEY = () => process.env.BHASHINI_INFERENCE_API_KEY || '';
 const ONE_HOUR = 60 * 60 * 1000;
 
 const configCache = new Map();                   // "asr:ta" -> { at, serviceId, url, authName, authValue }
@@ -38,9 +42,9 @@ async function getConfig(taskType, language) {
   const config = {
     at: Date.now(),
     serviceId,
-    url: endpoint.callbackUrl,
-    authName: endpoint.inferenceApiKey.name,
-    authValue: endpoint.inferenceApiKey.value,
+    url: INFERENCE_URL() || endpoint.callbackUrl,
+    authName: INFERENCE_KEY() ? 'Authorization' : endpoint.inferenceApiKey.name,
+    authValue: INFERENCE_KEY() || endpoint.inferenceApiKey.value,
   };
   configCache.set(cacheKey, config);
   return config;
