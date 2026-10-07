@@ -142,9 +142,12 @@ function findTimes(text) {
   // "class 6 to 8", "std 5-7", "4 weeks", "12 students" are not times
   const t = text
     .replace(/\b(?:class(?:es)?|std|grade|standard)\s*\d{1,2}(?:\s*(?:to|-|–)\s*\d{1,2})?/gi, ' ')
+    .replace(/\d{1,2}\s*(?:முதல்|to|-|–|से)\s*\d{1,2}\s*(?:ஆம்\s*)?(?:வகுப்பு|கிளாஸ்|कक्षा|क्लास)/g, ' ')
+    .replace(/\d{1,2}\s*(?:ஆம்\s*)?(?:வகுப்பு|कक्षा|क्लास)/g, ' ')
     .replace(/\b\d{1,3}\s*(?:weeks?|வாரம்|வாரங்கள்|வாரங்களுக்கு|हफ़्त\S*|हफ्त\S*|सप्ताह|students?|children|kids|people|elders|boys|girls|மாணவர்\S*|குழந்தை\S*|பேர்|बच्च\S*|छात्र\S*|लोग)/gi, ' ');
-  const range = new RegExp(`${TIME}${TO}${TIME}`, 'i').exec(t);
-  if (range) {
+  const ranges = new RegExp(`${TIME}${TO}${TIME}`, 'gi');
+  let range;
+  while ((range = ranges.exec(t))) {
     const [, h1, m1, s1, h2, m2, s2] = range;
     const anchored = withSuffix(s1) || withSuffix(s2) || m1 || m2 || /\b(?:from|at|between)\s*$/i.test(t.slice(0, range.index));
     if (anchored) {
@@ -165,13 +168,13 @@ function findTimes(text) {
   return [];
 }
 function findWeeks(text) {
-  const m = /\b(\d{1,2}|[a-z]+|[஀-௿]+|[ऀ-ॿ]+)\s*(weeks?|வாரம்|வாரங்கள்|வாரங்களுக்கு|हफ़्ते|हफ्ते|हफ़्तों|हफ्तों|सप्ताह)\b/i.exec(text);
+  const m = /(?:^|[\s,(])(\d{1,2}|[a-z]+|[஀-௿]+|[ऀ-ॿ]+)\s*(weeks?\b|வாரங்களுக்கு|வாரங்கள்|வாரம்|हफ़्तों|हफ्तों|हफ़्ते|हफ्ते|सप्ताह)/i.exec(text);
   if (!m) return 0;
   const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()] || 0;
   return n >= 1 && n <= 52 ? n : 0;
 }
 function findGroupSize(text) {
-  const m = /\b(\d{1,3})\s*(students?|children|kids|people|elders|women|men|boys|girls|மாணவர்கள்|குழந்தைகள்|பேர்|बच्चे|छात्र|लोग)\b/i.exec(text);
+  const m = /(?:^|[\s,(])(\d{1,3})\s*(students?\b|children\b|kids\b|people\b|elders\b|women\b|men\b|boys\b|girls\b|மாணவர\S*|குழந்தை\S*|பேர\S*|बच्च\S*|छात्र\S*|लोग\S*)/i.exec(text);
   return m ? Number(m[1]) : 0;
 }
 function findInterests(text) {
@@ -186,7 +189,7 @@ function findPlace(text) {
 // Spoken edits: "change Wednesday to Thursday", "not Wednesday, Thursday", "make it 4 weeks", "place is X".
 function applyEdit(draft, text) {
   const days = findDays(text);
-  const edit = /\b(change|make it|not|instead|correct|rather|மாற்று|இல்லை|बदल|नहीं)\b/i.test(text);
+  const edit = /\b(change|make it|not|instead|correct|rather)\b|மாற்று|இல்லை|बदल|नहीं/i.test(text);
   if (days.length >= 2 && edit) { draft.rhythm.day = days[days.length - 1]; return 'day'; }
   if (days.length === 1 && edit && draft.rhythm.day) { draft.rhythm.day = days[0]; return 'day'; }
   const weeks = findWeeks(text);
@@ -201,8 +204,9 @@ function applyEdit(draft, text) {
 // Read one coordinator turn into the draft. `asked` is the field the app asked for just before it, if any.
 function absorb(draft, text, asked) {
   const clean = ruleRewrite(text) || text;            // never carry a name, money or a word we avoid into the card
-  if (asked === 'related') return;                     // handled by the caller (yes / no)
-  if (applyEdit(draft, clean)) return;
+  if (asked === 'related') return null;                // handled by the caller (yes / no)
+  const edited = applyEdit(draft, clean);
+  if (edited) return edited;
 
   const days = findDays(clean);
   const times = findTimes(clean);
@@ -231,6 +235,7 @@ function absorb(draft, text, asked) {
   if (place && !draft.place && asked !== 'place') draft.place = place;
   for (const i of interests) if (!draft.interestTags.includes(i) && draft.interestTags.length < 3) draft.interestTags.push(i);
   if (!draft.title && draft.want) draft.title = titleFrom(draft.want, draft.interestTags);
+  return null;
 }
 
 const GROUP_NOUN = /\b(students|children|elders|women|girls|boys|families|kids)\b/i;
@@ -294,7 +299,7 @@ function absorbTurns({ turns = [], draft: given, context = {} }) {
       absorb(draft, last.text, null);                   // not a yes or no: just more about the need
     }
   } else if (last?.role === 'coordinator') {
-    absorb(draft, last.text, lastAsked);
+    draft.edited = absorb(draft, last.text, lastAsked) || null;   // the field an explicit edit changed, if any
   }
   return draft;
 }
@@ -324,9 +329,9 @@ function decide({ language = 'en', turns = [], draft, context = {} }) {
   }
 
   const spoken = turns.filter(t => t.role === 'coordinator').map(t => str(t.text)).join(' ');
-  const privacyFlags = findFlags(`${spoken}
-${JSON.stringify(draft)}`).map(publicFlag);
-  return { draft, missing, question, readBack: readBack(language, draft), relatedCardId, privacyFlags };
+  const { edited = null, ...card } = draft;              // the edit flag stays internal
+  const privacyFlags = findFlags(`${spoken}\n${JSON.stringify(card)}`).map(publicFlag);
+  return { draft: card, missing, question, readBack: readBack(language, card), relatedCardId, privacyFlags, edited };
 }
 
 // The whole rule-based turn, with no model at all.

@@ -230,8 +230,8 @@ async function login(userId) {
   const ctxCards = (overview.data?.needs || []).slice(0, 5);
   const seededOrPosted = ctxCards.every(n => n.title && n.rhythm && typeof n.weeks === 'number');
   const ctxKeys = new Set(ctxCards.flatMap(n => Object.keys(n)));
-  check('X22 voicebridge: volunteers 403; no key → rules, one Tamil question; context = own cards, no personal fields',
-    vbByVol.status === 403 && vb.status === 200 && vb.data?.source === 'rules' && vb.data?.question?.field === 'place'
+  check('X22 voicebridge: volunteers 403; rules or model, one Tamil question; context = own cards, no personal fields',
+    vbByVol.status === 403 && vb.status === 200 && ['rules', 'ai'].includes(vb.data?.source) && vb.data?.question?.field === 'place'
       && /[஀-௿]/.test(vb.data?.question?.text || '') && ctxCards.length > 0 && seededOrPosted
       && ![...ctxKeys].some(k => /^(name|age|income|caste|religion|health|photo|phone|address)$/i.test(k)),
     `volunteer ${vbByVol.status}, status ${vb.status}, source ${vb.data?.source}, question ${JSON.stringify(vb.data?.question)}, context keys ${[...ctxKeys]}`);

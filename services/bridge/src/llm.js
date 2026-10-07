@@ -39,10 +39,13 @@ const responseFormat = (name, schema) => (process.env.LLM_RESPONSE_FORMAT === 'j
   ? { type: 'json_object' }
   : { type: 'json_schema', json_schema: { name, strict: true, schema } });
 
+// gpt-oss models accept reasoning_effort (low | medium | high); unset means the API's default
+const reasoning = () => (['low', 'medium', 'high'].includes(process.env.LLM_REASONING_EFFORT) ? { reasoning_effort: process.env.LLM_REASONING_EFFORT } : {});
+
 const isConfigured = () => Boolean(apiKey() && modelName());
 
 // One chat call. Returns the raw text of the answer. Throws on any failure.
-async function chat({ system, user, name, schema }) {
+async function chat({ system, user, name, schema }, retried = false) {
   if (!apiKey()) throw new Error('LLM_API_KEY is not set');
   if (!modelName()) throw new Error('LLM_MODEL is not set');
 
@@ -51,14 +54,24 @@ async function chat({ system, user, name, schema }) {
     headers: { Authorization: `Bearer ${apiKey()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: modelName(),
-      temperature: 0.2,
+      temperature: Number(process.env.LLM_TEMPERATURE ?? 0),
+      max_completion_tokens: Number(process.env.LLM_MAX_TOKENS) || 2048,
+      ...reasoning(),
       messages: [
-        { role: 'system', content: `${system}\n\nAnswer with JSON only, matching this schema:\n${JSON.stringify(schema)}` },
+        { role: 'system', content: process.env.LLM_RESPONSE_FORMAT === 'json_object'
+          ? `${system}\n\nAnswer with JSON only, matching this schema:\n${JSON.stringify(schema)}`
+          : `${system}\n\nAnswer with JSON only.` },
         { role: 'user', content: user },
       ],
       response_format: responseFormat(name, schema),
     }),
   });
+  if (res.status === 429 && !retried) {
+    // the free tier is small (tokens per minute); wait briefly once, then try again
+    const after = Number(res.headers.get('retry-after')) * 1000 || 1500;
+    await new Promise(r => setTimeout(r, Math.min(after, 2500)));
+    return chat({ system, user, name, schema }, true);
+  }
   if (!res.ok) throw new Error(`LLM ${res.status}: ${await res.text()}`);
   const body = await res.json();
   return body.choices[0].message.content;

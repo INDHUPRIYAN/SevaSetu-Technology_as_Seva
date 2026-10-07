@@ -221,7 +221,8 @@ async function reloadUntil(page, locator, tries = 3) {
     await meera.getByRole('link', { name: /Visit and listen/ }).click();
     await meera.getByText('Before you visit').waitFor();           // the teaching for this moment
     await meera.getByRole('heading', { name: /Listening Guide/ }).waitFor();
-    if (await meera.locator('#listening-guide + p + ol li').count() !== 3) throw new Error('the Listening Guide does not show 3 questions');
+    await meera.locator('#listening-guide ~ ol li').first().waitFor({ timeout: 20000 });   // the model may take a moment
+    if (await meera.locator('#listening-guide ~ ol li').count() !== 3) throw new Error('the Listening Guide does not show 3 questions');
     await meera.getByText('Interpretation').first().waitFor();       // our words; the quote shows once verified
     await meera.getByRole('button', { name: 'I understand' }).click();
     await meera.getByRole('button', { name: 'Request a visit' }).click();

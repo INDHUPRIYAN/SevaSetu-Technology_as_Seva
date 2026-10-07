@@ -145,12 +145,12 @@ describe('VoiceBridge with a model: the server still decides', () => {
     interestTags: ['maths'], rhythm: { day: '', start: '', end: '' }, weeks: 0, place: '', ...extra,
   });
 
-  it('uses the model\'s wording for the question the server chose, in the selected language', async () => {
-    const a = withModel(() => ({ draft: modelDraft(), question: 'இது எங்கே நடக்கும்?', readBack: 'கணக்கு உதவி.' }));
+  it('the question is the fixed wording for the field the server chose, in the selected language; the model\'s read-back is used', async () => {
+    const a = withModel(() => ({ draft: modelDraft(), question: 'What will they learn?', readBack: 'கணக்கு உதவி.' }));
     const res = await say(a, { language: 'ta', turns: [coordinator('குழந்தைகளுக்கு கணக்கு உதவி')], draft: null, context: CONTEXT });
     assert.equal(res.body.data.source, 'ai');
     assert.equal(res.body.data.question.field, 'place');
-    assert.equal(res.body.data.question.text, 'இது எங்கே நடக்கும்?');
+    assert.equal(res.body.data.question.text, 'இது எங்கே நடக்கும்? இடத்தின் பெயரைச் சொல்லுங்கள்.');   // never the model's drifting wording
     assert.equal(res.body.data.readBack, 'கணக்கு உதவி.');
   });
 
