@@ -8,10 +8,15 @@ services:
     name: sevasetu
     runtime: node
     plan: free
-    buildCommand: npm ci
+    # production packages only: the test-only mongodb-memory-server would download a 100 MB MongoDB binary
+    buildCommand: npm ci --omit=dev
     startCommand: node mono.js
     healthCheckPath: /health/all
     envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGOMS_DISABLE_POSTINSTALL   # belt and braces: never download a test MongoDB on the server
+        value: "1"
       - key: MONGO_URI              # Atlas connection string, e.g. mongodb+srv://…/sevasetu (core and reflect share it)
         sync: false
       - key: JWT_SECRET             # any long random string
