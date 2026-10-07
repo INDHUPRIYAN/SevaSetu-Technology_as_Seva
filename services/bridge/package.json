@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js",
-    "check": "node --env-file=.env scripts/check-providers.js",
+    "check": "node --env-file-if-exists=.env --env-file-if-exists=../../.env scripts/check-providers.js",
     "scan-keys": "node scripts/scan-keys.js",
     "test": "node --test --test-concurrency=1 \"test/*.test.js\""
   },

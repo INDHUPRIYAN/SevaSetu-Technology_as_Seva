@@ -55,14 +55,15 @@ Needs Node 20+, MongoDB (a local `mongod` or Atlas) and, for the screen tests, G
 
 ```bash
 npm install
-cp services/core/.env.example     services/core/.env       # MONGO_URI (…/seva_core), JWT_SECRET
-cp services/gateway/.env.example  services/gateway/.env    # the same JWT_SECRET
-cp services/reflect/.env.example  services/reflect/.env    # MONGO_URI (…/seva_reflect)
-cp services/bridge/.env.example   services/bridge/.env     # optional: Groq and Bhashini keys
-cp apps/web/.env.example          apps/web/.env
-npm run seed        # fills both databases; safe to repeat
-npm run dev         # all five parts; open http://localhost:5174
+cp .env.example .env   # ONE file for every setting and token: databases, JWT, ports, Groq, Bhashini, VITE_API_URL
+npm run seed           # fills both databases; safe to repeat
+npm run dev            # all five parts; open http://localhost:5174
 ```
+
+Every service, the seeds, `mono.js` and the web app read the root `.env` (git ignores it; `.env.example` is the
+tracked template). A `services/<name>/.env` or `apps/web/.env`, if you create one, overrides it for that part
+only. Names that would clash carry a prefix: `CORE_MONGO_URI`, `REFLECT_MONGO_URI`, `CORE_PORT`, `REFLECT_PORT`,
+`BRIDGE_PORT`, `GATEWAY_PORT`.
 
 The web app runs on **5174** (another local project uses Vite's default 5173).
 
@@ -71,7 +72,7 @@ behind two small modules, `providers/llm.js` (Groq) and `providers/language.js` 
 can be swapped. Every model answer is JSON checked against a schema on the server, retried once, and
 dropped for the rule-based fallback if it still does not fit; every call times out at 8 s.
 
-| Variable (in `services/bridge/.env`) | What it does | Without it |
+| Variable (in the root `.env`) | What it does | Without it |
 |---|---|---|
 | `LLM_PROVIDER` | `groq` (default) or `none` | — |
 | `LLM_API_KEY` | Groq key (console.groq.com) | VoiceBridge, Dignity rewrite, Listening Guide, Teaching Finder answer with their rule-based fallbacks and are never labelled "Suggested" |
@@ -84,7 +85,7 @@ dropped for the rule-based fallback if it still does not fit; every call times o
 | `DRAFT_TIMEOUT_MS`, `TRANSLATE_TIMEOUT_MS` | provider timeouts | 8000 / 4000 |
 
 To check real keys: `npm run check` (add a 16 kHz Tamil `.wav` path after
-`--` to test speech too). Keys live only in `services/bridge/.env`, which git ignores;
+`--` to test speech too). Keys live only in the root `.env`, which git ignores;
 `npm run scan-keys` confirms they appear nowhere else in the repo.
 
 | Command | What it does |

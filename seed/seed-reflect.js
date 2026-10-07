@@ -46,6 +46,8 @@ async function seedReflect() {
 if (require.main === module) {
   // uses MONGO_URI from the command line, else from services/reflect/.env
   require('dotenv').config({ path: require('path').join(__dirname, '../services/reflect/.env'), quiet: true });
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env'), quiet: true });   // the root .env
+  process.env.MONGO_URI ||= process.env.REFLECT_MONGO_URI;
   (async () => {
     if (!process.env.MONGO_URI) throw new Error('Set MONGO_URI (it should end in /seva_reflect)');
     await mongoose.connect(process.env.MONGO_URI);

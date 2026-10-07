@@ -8,7 +8,9 @@ const path = require('path');
 const platformPort = process.env.PORT;               // set by the host (Render); read before .env adds core's PORT
 const env = file => require('dotenv').config({ path: path.join(__dirname, file), quiet: true });
 env('services/core/.env');
-env('services/bridge/.env');                         // Groq and Bhashini keys, if present
+env('services/bridge/.env');                         // per-service files, if present
+env('.env');                                         // the root .env: every token in one file
+process.env.MONGO_URI ||= process.env.CORE_MONGO_URI;
 const mongoose = require('mongoose');
 const { createApp: createGateway } = require('./services/gateway/src/app');
 const { createApp: createCore } = require('./services/core/src/app');

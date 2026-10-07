@@ -33,8 +33,9 @@ New → Blueprint → pick this repo. [render.yaml](render.yaml) creates `sevase
 
 Every service answers `GET /health`. Open `https://<gateway>/health/all`: all three must be `true`.
 
-**One-service fallback:** create a single web service with start command `node mono.js`, and set `MONGO_URI`,
-`JWT_SECRET` and, if you have it, `LLM_API_KEY`. It runs all four services in one process.
+**One-service fallback:** create a single web service with start command `node mono.js`, and set `MONGO_URI`
+(or `CORE_MONGO_URI`), `JWT_SECRET` and, if you have them, the Groq and Bhashini variables. It runs all four
+services in one process. Locally, every variable comes from the one root `.env` (see `.env.example`).
 
 ## 3. Vercel: the web app
 

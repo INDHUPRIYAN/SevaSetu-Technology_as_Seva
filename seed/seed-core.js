@@ -4,6 +4,8 @@
 // All names are invented. No served person's name, age, income or photo anywhere.
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../services/core/.env'), quiet: true });
+require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });   // the root .env: every token in one file
+process.env.MONGO_URI ||= process.env.CORE_MONGO_URI;
 const mongoose = require('mongoose');
 const ids = require('./ids');
 const { User, Org, Need, Visit, Commitment, Circle, Resource } = require('../services/core/src/models');
